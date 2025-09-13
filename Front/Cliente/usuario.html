@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Chamado</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">Uniti</div>
+    <nav class="menu">
+      <a href="index.html" class="menu-item">⬅ Voltar ao Dashboard</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+    <section class="form-section">
+      <h1>Abrir Novo Chamado</h1>
+
+      <form class="form-chamado">
+        <label for="setor">Setor</label>
+        <select id="setor" name="setor" required>
+          <option value="">Selecione</option>
+          <option value="TI">TI</option>
+          <option value="RH">RH</option>
+          <option value="Financeiro">Financeiro</option>
+          <option value="Comercial">Comercial</option>
+        </select>
+
+        <label for="assunto">Assunto</label>
+        <input type="text" id="assunto" name="assunto" placeholder="Digite o assunto" required>
+
+        <label for="descricao">Descrição Completa</label>
+        <textarea id="descricao" name="descricao" rows="6" placeholder="Descreva o problema" required></textarea>
+
+        <label for="solicitante">Solicitante</label>
+        <input type="text" id="solicitante" name="solicitante" placeholder="Seu nome" required>
+
+        <div class="acoes-form">
+          <button type="submit" class="btn-salvar">Salvar Chamado</button>
+          <button type="button" class="btn-cancelar" onclick="window.location.href='index.html'">Cancelar</button>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+
+<script>
+document.querySelector(".form-chamado").addEventListener("submit", async function(e){
+  e.preventDefault();
+
+  const chamadoDTO = {
+    Titulo: document.getElementById("assunto").value,
+    Descricao: document.getElementById("descricao").value,
+    SetorResponsavel: document.getElementById("setor").value
+  };
+
+  try {
+    const res = await fetch("https://172.20.18.68:7289/api/Chamados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chamadoDTO)
+    });
+
+    if(res.ok){
+      alert("Seu chamado foi criado com sucesso!");
+      window.location.href = "index.html"; // volta pro dashboard na mesma aba
+    } else {
+      const errorText = await res.text();
+      alert("Erro ao criar chamado: " + errorText);
+    }
+  } catch(err){
+    console.error(err);
+    alert("Erro de conexão com o servidor.");
+  }
+});
+</script>
+</body>
+</html>
