@@ -1,0 +1,302 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9f9fb;
+  color: #333;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 230px;
+  background: #3a1c71; /* Roxo escuro */
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  font-size: 26px;
+  font-weight: bold;
+  margin-bottom: 40px;
+  text-align: center;
+  color: #ff7e29; /* Laranja */
+}
+
+.menu .menu-item {
+  display: block;
+  color: #fff;
+  text-decoration: none;
+  margin-bottom: 15px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: background 0.3s ease;
+}
+
+.menu .menu-item.active,
+.menu .menu-item:hover {
+  background: rgba(255, 126, 41, 0.2); /* Hover em laranja translúcido */
+}
+
+/* Main content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Filtros */
+.filters {
+  display: flex;
+  gap: 10px;
+  padding: 15px 20px;
+  background: #fff;
+  border-bottom: 1px solid #eee;
+}
+
+.filters input {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+  transition: border 0.3s;
+}
+
+.filters input:focus {
+  border-color: #3a1c71; /* Roxo escuro */
+}
+
+.btn-novo {
+  padding: 8px 16px;
+  background: #ff7e29; /* Laranja */
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.btn-novo:hover {
+  opacity: 0.9;
+}
+
+/* Table */
+.table-section {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.chamados-table {
+  border-collapse: collapse;
+  width: 70%;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.chamados-table th,
+.chamados-table td {
+  padding: 12px 15px;
+  text-align: left;
+}
+
+.chamados-table th {
+  background: #3a1c71; /* Roxo escuro */
+  color: #fff;
+  font-weight: bold;
+}
+
+.chamados-table tbody tr:nth-child(even) {
+  background: #f9f9fb;
+}
+
+.chamados-table tbody tr:hover {
+  background: #fdf3eb; /* Laranja bem claro no hover */
+}
+
+/* Status */
+.status.aberto {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+.status.fechado {
+  color: gray;
+  font-weight: bold;
+}
+
+.status.cancelado {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+/* Detalhes do chamado */
+.chamado-detalhes {
+  width: 30%;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 80vh;
+}
+
+.chamado-detalhes h2 {
+  font-size: 20px;
+  margin-bottom: 15px;
+  color: #3a1c71; /* Roxo escuro */
+}
+
+.chamado-detalhes .info p {
+  margin-bottom: 12px;
+}
+
+.chamado-detalhes .historico h3 {
+  margin: 15px 0 10px;
+  color: #ff7e29; /* Laranja */
+}
+
+.chamado-detalhes .historico ul {
+  list-style: none;
+}
+
+.chamado-detalhes .historico ul li {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+/* Botões */
+.chamado-detalhes .acoes {
+  margin-top: 15px;
+}
+
+.chamado-detalhes .acoes button {
+  padding: 8px 14px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #fff;
+  transition: transform 0.2s, opacity 0.3s;
+}
+
+.chamado-detalhes .acoes button:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.btn-responder {
+  background: #3a1c71; /* Roxo escuro */
+}
+
+.btn-fechar {
+  background: #e74c3c;
+}
+
+/* ==========================
+   Formulário de Novo Chamado
+========================== */
+.form-section {
+  max-width: 600px;
+  margin: 40px auto;
+  background: #fff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.form-section h1 {
+  font-size: 24px;
+  margin-bottom: 25px;
+  text-align: center;
+  color: #3a1c71; /* Roxo escuro */
+}
+
+/* Labels */
+.form-chamado label {
+  font-weight: bold;
+  margin-top: 15px;
+  margin-bottom: 6px;
+  display: block;
+  color: #444;
+}
+
+/* Inputs e Textareas */
+.form-chamado input,
+.form-chamado select,
+.form-chamado textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+  transition: border 0.3s, box-shadow 0.3s;
+  font-size: 14px;
+}
+
+.form-chamado input:focus,
+.form-chamado select:focus,
+.form-chamado textarea:focus {
+  border-color: #3a1c71; /* Roxo escuro */
+  box-shadow: 0 0 0 3px rgba(58, 28, 113, 0.2);
+}
+
+/* Botões */
+.acoes-form {
+  margin-top: 25px;
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.btn-salvar {
+  padding: 10px 18px;
+  background: #ff7e29; /* Laranja */
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.3s;
+}
+
+.btn-salvar:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.btn-cancelar {
+  padding: 10px 18px;
+  background: #3a1c71; /* Roxo escuro */
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.3s;
+}
+
+.btn-cancelar:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}

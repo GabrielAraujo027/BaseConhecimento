@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Chamados</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">Uniti</div>
+    <nav class="menu">
+      <a href="#" class="menu-item active">Todos os Chamados</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <section class="filters">
+      <input type="text" id="filter-status" placeholder="Buscar status">
+      <input type="text" id="filter-setor" placeholder="Buscar setor">
+
+      <!-- Botão Novo Chamado -->
+      <button class="btn-novo" onclick="window.location.href='usuario.html'">
+        + Novo Chamado
+      </button>
+    </section>
+
+    <section class="table-section">
+      <table class="chamados-table" id="chamados-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Setor</th>
+            <th>Assunto</th>
+            <th>Solicitante</th>
+            <th>Data</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <!-- Chamados serão carregados via JS -->
+        </tbody>
+      </table>
+
+      <aside class="chamado-detalhes">
+        <h2>Detalhes do Chamado</h2>
+        <div class="info" id="detalhes-info">
+          <p>Selecione um chamado para ver detalhes.</p>
+        </div>
+        <div class="historico">
+          <h3>Histórico do Chamado</h3>
+          <ul class="historico-chamado" id="detalhes-historico"></ul>
+        </div>
+        <div class="acoes">
+          <button class="btn-responder">Encaminhar</button>
+          <button class="btn-fechar">Encerrar</button>
+        </div>
+      </aside>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// ==== Função para carregar todos os chamados do backend ====
+async function carregarChamados() {
+  try {
+    const res = await fetch("https://172.20.18.68:7289/api/Chamados");
+    const chamados = await res.json();
+
+    const tbody = document.getElementById("table-body");
+    tbody.innerHTML = "";
+
+    chamados.forEach(chamado => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${chamado.id}</td>
+        <td>${chamado.setorResponsavel}</td>
+        <td>${chamado.titulo}</td>
+        <td>${chamado.solicitante || "-"}</td>
+        <td>${new Date(chamado.dataCriacao || chamado.data).toLocaleDateString()}</td>
+        <td class="status ${chamado.statusEnum.toLowerCase()}">${chamado.statusEnum}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch(err) {
+    console.error("Erro ao carregar chamados:", err);
+    alert("Não foi possível carregar os chamados.");
+  }
+}
+
+// ==== Filtros ====
+const filterStatus = document.getElementById("filter-status");
+const filterSetor = document.getElementById("filter-setor");
+
+function aplicarFiltro() {
+  const statusValue = filterStatus.value.toLowerCase();
+  const setorValue = filterSetor.value.toLowerCase();
+  document.querySelectorAll("#chamados-table tbody tr").forEach(row => {
+    const status = row.querySelector("td:nth-child(6)").textContent.toLowerCase();
+    const setor = row.querySelector("td:nth-child(2)").textContent.toLowerCase();
+    row.style.display = (status.includes(statusValue) && setor.includes(setorValue)) ? "" : "none";
+  });
+}
+
+filterStatus.addEventListener("input", aplicarFiltro);
+filterSetor.addEventListener("input", aplicarFiltro);
+
+// ==== Inicializa ====
+carregarChamados();
+</script>
+</body>
+</html>
