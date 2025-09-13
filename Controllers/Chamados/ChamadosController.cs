@@ -4,6 +4,7 @@ using BaseConhecimento.Models.Chamados;
 using BaseConhecimento.Models.Chamados.Enums;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace BaseConhecimento.Controllers;
 
@@ -15,31 +16,27 @@ public class ChamadosController : ControllerBase
     public ChamadosController(AppDbContext ctx) => _ctx = ctx;
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Chamado>>> GetAll()
-        => await _ctx.Chamados.AsNoTracking().ToListAsync();
+    public async Task<ActionResult<IEnumerable<Chamado>>> GetAll(FiltrarChamadoRequest request)
+    {
+        
+        if(!request.SetorResponsavel.IsNullOrEmpty())
+        {
+            _ctx.Chamados.Where(x => x.SetorResponsavel == request.SetorResponsavel);
+        }
+        
+        if(request.StatusEnum is not null)
+        {
+            _ctx.Chamados.Where(x => x.StatusEnum == request.StatusEnum);
+        }
+
+        return await _ctx.Chamados.AsNoTracking().ToListAsync();
+    }
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Chamado>> GetById(int id)
     {
         var item = await _ctx.Chamados.FindAsync(id);
         return item is null ? NotFound() : item;
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<Chamado>> Create(CriarChamadoDTO request)
-    {
-        var chamado = new Chamado
-        {
-            Titulo = request.Titulo,
-            Descricao = request.Descricao,
-            StatusEnum = StatusChamadoEnum.Pendente,
-            SetorResponsavel = request.SetorResponsavel
-        };
-
-        _ctx.Chamados.Add(chamado);
-        await _ctx.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetById), new { id = chamado.Id }, chamado);
     }
 
     [HttpPut("{id:int}")]

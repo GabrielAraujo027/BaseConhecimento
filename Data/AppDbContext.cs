@@ -1,6 +1,6 @@
-﻿// Data/AppDbContext.cs
+﻿using BaseConhecimento.Models.Chamados; 
+using BaseConhecimento.Models.Knowledge;
 using Microsoft.EntityFrameworkCore;
-using BaseConhecimento.Models.Chamados; // ajuste se seu namespace for diferente
 
 namespace BaseConhecimento.Data
 {
@@ -9,5 +9,6 @@ namespace BaseConhecimento.Data
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         public DbSet<Chamado> Chamados => Set<Chamado>();
+        public DbSet<KnowledgeItem> KnowledgeBase => Set<KnowledgeItem>();
     }
 }
