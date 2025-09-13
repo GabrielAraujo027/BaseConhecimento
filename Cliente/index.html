@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Chamados</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">Uniti</div>
+    <nav class="menu">
+      <a href="#" class="menu-item active">Todos os Chamados</a>
+    </nav>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <section class="filters">
+      <input type="text" placeholder="Buscar status">
+      <input type="text" placeholder="Buscar setor">
+    </section>
+
+    <section class="table-section">
+      <table class="chamados-table">
+        <!-- Cabeçalho da tabela -->
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Setor</th>
+            <th>Assunto</th>
+            <th>Solicitante</th>
+            <th>Data</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+
+        <!-- Corpo da tabela -->
+        <tbody>
+          <tr>
+            <td>001</td>
+            <td>TI</td>
+            <td>Falha crítica no servidor</td>
+            <td>Ana Souza</td>
+            <td>26/07/2025</td>
+            <td class="status aberto">Aberto</td>
+          </tr>
+          <tr>
+            <td>002</td>
+            <td>RH</td>
+            <td>Problemas com registro</td>
+            <td>Bruno Lima</td>
+            <td>26/07/2025</td>
+            <td class="status fechado">Fechado</td>
+          </tr>
+          <tr>
+            <td>003</td>
+            <td>Financeiro</td>
+            <td>Dúvidas sobre lançamentos</td>
+            <td>Carl Dias</td>
+            <td>26/07/2025</td>
+            <td class="status cancelado">Cancelado</td>
+          </tr>
+          <!-- mais linhas -->
+        </tbody>
+      </table>
+
+      <!-- Detalhes do chamado -->
+      <aside class="chamado-detalhes">
+        <h2>Detalhes do Chamado 001</h2>
+        <div class="info">
+          <p><strong>Assunto:</strong> Falha crítica no servidor de banco de dados principal</p>
+          <p><strong>Descrição Completa:</strong> O servidor de dados principal (DB01) está offline desde às 10h00, impactando todos os serviços críticos da empresa. Necessária intervenção imediata para restauração.</p>
+        </div>
+        <div class="historico">
+          <h3>Histórico do Chamado</h3>
+          <ul class="historico-chamado">
+            <li>26/07/2025 11:20 - Chamado aberto por Ana Souza</li>
+            <li>26/07/2025 11:45 - Tarefa encaminhada para TI</li>
+            <li>26/07/2025 12:30 - Técnico iniciou diagnóstico</li>
+          </ul>
+        </div>
+        <div class="acoes">
+          <button class="btn-responder">Encaminhar</button>
+          <button class="btn-fechar">Encerrar</button>
+        </div>
+      </aside>
+    </section>
+
+  </main>
+
+</div>
+</body>
+</html>
