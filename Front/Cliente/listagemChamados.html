@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Listagem de Chamados</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <aside class="sidebar">
+    <div class="logo">Unitá</div>
+    <nav class="menu">
+      <a href="novoChamado.html" class="menu-item">Novo Chamado</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <section class="filters">
+      <input type="text" id="filter-status" placeholder="Buscar status">
+      <input type="text" id="filter-setor" placeholder="Buscar setor">
+    </section>
+
+    <section class="table-section">
+      <table class="chamados-table" id="chamados-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Setor</th>
+            <th>Assunto</th>
+            <th>Solicitante</th>
+            <th>Data</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="6">Carregando chamados...</td></tr>
+        </tbody>
+      </table>
+
+      <aside class="chamado-detalhes">
+        <h2>Detalhes do Chamado</h2>
+        <div class="info" id="detalhes-info">
+          <p>Selecione um chamado para ver detalhes.</p>
+        </div>
+        <div class="historico">
+          <h3>Histórico do Chamado</h3>
+          <ul class="historico-chamado" id="detalhes-historico"></ul>
+        </div>
+        <div class="acoes">
+          <button class="btn-responder" id="btn-encaminhar">Encaminhar</button>
+          <button class="btn-fechar" id="btn-fechar">Encerrar</button>
+        </div>
+
+        <div id="encaminhar-container" style="display:none; margin-top:10px;">
+          <label for="novo-setor">Escolha o novo setor:</label>
+          <select id="novo-setor">
+            <option value="">Selecione</option>
+            <option value="TI">TI</option>
+            <option value="RH">RH</option>
+            <option value="Financeiro">Financeiro</option>
+            <option value="Comercial">Comercial</option>
+          </select>
+          <button id="confirmar-encaminhar">Confirmar</button>
+        </div>
+      </aside>
+    </section>
+  </main>
+</div>
+
+<script>
+const API_LISTA = "http://172.20.18.68:5206/api/Chamados";
+let chamadoSelecionado = null;
+
+async function carregarChamados() {
+  try {
+    const res = await fetch(API_LISTA);
+    if(!res.ok) throw new Error("Erro ao buscar chamados");
+    const chamados = await res.json();
+
+    const tbody = document.getElementById("table-body");
+    tbody.innerHTML = "";
+
+    chamados.forEach(chamado => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${chamado.id}</td>
+        <td>${chamado.setorResponsavel}</td>
+        <td>${chamado.titulo}</td>
+        <td>${chamado.solicitante || "-"}</td>
+        <td>${new Date(chamado.dataCriacao || chamado.data).toLocaleDateString()}</td>
+        <td class="status ${chamado.statusEnum.toLowerCase()}">${chamado.statusEnum}</td>
+      `;
+      tr.addEventListener("click", () => mostrarDetalhes(chamado.id));
+      tbody.appendChild(tr);
+    });
+  } catch(err){
+    console.error(err);
+    document.getElementById("table-body").innerHTML = `<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;
+  }
+}
+
+async function mostrarDetalhes(id) {
+  try {
+    const res = await fetch(`${API_LISTA}/${id}`);
+    if(!res.ok) throw new Error("Erro ao buscar detalhes");
+    const chamado = await res.json();
+    chamadoSelecionado = chamado;
+
+    document.getElementById("detalhes-info").innerHTML = `
+      <p><strong>Título:</strong> ${chamado.titulo}</p>
+      <p><strong>Descrição:</strong> ${chamado.descricao || "Sem descrição"}</p>
+      <p><strong>Setor:</strong> ${chamado.setorResponsavel}</p>
+      <p><strong>Status:</strong> ${chamado.statusEnum}</p>
+    `;
+
+    document.getElementById("detalhes-historico").innerHTML = `
+      <li>Chamado criado em ${new Date(chamado.dataCriacao || chamado.data).toLocaleString()}</li>
+    `;
+  } catch(err){
+    console.error(err);
+    alert("Erro ao buscar detalhes do chamado");
+  }
+}
+
+document.getElementById("btn-fechar").addEventListener("click", async () => {
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+  try {
+    const res = await fetch(`${API_LISTA}/${chamadoSelecionado.id}`, {
+      method:"PUT",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({
+        id: chamadoSelecionado.id,
+        statusEnum: "Fechado",
+        setorResponsavel: chamadoSelecionado.setorResponsavel
+      })
+    });
+    if(res.ok){ alert("Chamado encerrado!"); carregarChamados(); }
+    else alert("Erro ao encerrar chamado.");
+  } catch(err){ console.error(err); alert("Erro de conexão"); }
+});
+
+document.getElementById("btn-encaminhar").addEventListener("click", () => {
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+  document.getElementById("encaminhar-container").style.display = "block";
+});
+
+document.getElementById("confirmar-encaminhar").addEventListener("click", async () => {
+  const novoSetor = document.getElementById("novo-setor").value;
+  if(!novoSetor){ alert("Selecione um setor válido."); return; }
+  try {
+    const res = await fetch(`${API_LISTA}/${chamadoSelecionado.id}`, {
+      method:"PUT",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        id: chamadoSelecionado.id,
+        statusEnum: chamadoSelecionado.statusEnum,
+        setorResponsavel: novoSetor
+      })
+    });
+    if(res.ok){ alert("Chamado encaminhado!"); carregarChamados(); document.getElementById("encaminhar-container").style.display="none"; }
+    else alert("Erro ao encaminhar chamado.");
+  } catch(err){ console.error(err); alert("Erro de conexão"); }
+});
+
+// Filtros
+const filterStatus = document.getElementById("filter-status");
+const filterSetor = document.getElementById("filter-setor");
+
+function aplicarFiltro() {
+  const statusValue = filterStatus.value.toLowerCase();
+  const setorValue = filterSetor.value.toLowerCase();
+  document.querySelectorAll("#chamados-table tbody tr").forEach(row=>{
+    const status = row.querySelector("td:nth-child(6)").textContent.toLowerCase();
+    const setor = row.querySelector("td:nth-child(2)").textContent.toLowerCase();
+    row.style.display = (status.includes(statusValue) && setor.includes(setorValue)) ? "" : "none";
+  });
+}
+
+filterStatus.addEventListener("input", aplicarFiltro);
+filterSetor.addEventListener("input", aplicarFiltro);
+
+// Inicializa
+carregarChamados();
+</script>
+</body>
+</html>
