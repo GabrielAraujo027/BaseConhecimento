@@ -1,10 +1,145 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Novo Chamado / Chat</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat IA / Novo Chamado</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f9f9fb;
+  color: #333;
+}
+
+.dashboard {
+  display: flex;
+  height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 230px;
+  background: #3a1c71; /* Roxo escuro */
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  font-size: 26px;
+  font-weight: bold;
+  margin-bottom: 40px;
+  text-align: center;
+  color: #ff7e29; /* Laranja */
+}
+
+.menu .menu-item {
+  display: block;
+  color: #fff;
+  text-decoration: none;
+  margin-bottom: 15px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  transition: background 0.3s ease;
+}
+
+.menu .menu-item.active,
+.menu .menu-item:hover {
+  background: rgba(255, 126, 41, 0.2); /* Hover em laranja translúcido */
+}
+
+/* Main content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+/* Chat container */
+.chat-container {
+  flex: 1;
+  background: #fff;
+  border-radius: 12px;
+  padding: 15px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+/* Mensagens */
+.chat-message {
+  max-width: 70%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  word-wrap: break-word;
+  font-size: 14px;
+}
+
+.chat-message.user {
+  background: #ff7e29; /* Laranja */
+  color: #fff;
+  align-self: flex-end;
+  border-bottom-right-radius: 0;
+}
+
+.chat-message.ai {
+  background: #3a1c71; /* Roxo escuro */
+  color: #fff;
+  align-self: flex-start;
+  border-bottom-left-radius: 0;
+}
+
+/* Input container */
+.input-container {
+  display: flex;
+  gap: 10px;
+}
+
+.input-container input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  outline: none;
+  font-size: 14px;
+  transition: border 0.3s;
+}
+
+.input-container input:focus {
+  border-color: #3a1c71;
+  box-shadow: 0 0 0 3px rgba(58,28,113,0.2);
+}
+
+.input-container button {
+  padding: 10px 16px;
+  background: #3a1c71;
+  color: #fff;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.3s, transform 0.2s;
+}
+
+.input-container button:hover {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+</style>
 </head>
 <body>
 <div class="dashboard">
@@ -16,78 +151,70 @@
   </aside>
 
   <main class="main-content">
-    <section class="form-section">
-      <h1>Abrir Novo Chamado / Chat</h1>
-      <form class="form-chamado">
-        <label for="setor">Setor</label>
-        <select id="setor" required>
-          <option value="">Selecione</option>
-          <option value="TI">TI</option>
-          <option value="RH">RH</option>
-          <option value="Financeiro">Financeiro</option>
-          <option value="Comercial">Comercial</option>
-        </select>
-
-        <label for="assunto">Assunto</label>
-        <input type="text" id="assunto" required>
-
-        <label for="descricao">Descrição</label>
-        <textarea id="descricao" rows="6" required></textarea>
-
-        <label for="solicitante">Solicitante</label>
-        <input type="text" id="solicitante" required>
-
-        <div class="acoes-form">
-          <button type="submit" class="btn-salvar">Enviar</button>
-          <button type="button" class="btn-cancelar" onclick="window.location.href='listagemChamados.html'">Ver Chamados</button>
-        </div>
-      </form>
-    </section>
+    <h1 style="color:#3a1c71; text-align:center; margin-bottom:15px;">Chat com a IA</h1>
+    <div class="chat-container" id="chat-container">
+      <!-- Mensagens vão aparecer aqui -->
+    </div>
+    <div class="input-container">
+      <input type="text" id="chat-input" placeholder="Digite sua mensagem...">
+      <button id="send-btn">Enviar</button>
+    </div>
   </main>
 </div>
 
 <script>
-const API_CHAMADO = "http://172.20.18.68:5206/api/Knowledge/chat";
+const API_CHAT = "http://172.20.18.68:5206/api/Knowledge/chat";
+let history = [];
 
-document.querySelector(".form-chamado").addEventListener("submit", async (e)=>{
-  e.preventDefault();
-  const token = localStorage.getItem("token");
-  if(!token){ 
-    alert("Faça login primeiro!"); 
-    window.location.href="login.html"; 
-    return; 
-  }
+const chatContainer = document.getElementById("chat-container");
+const input = document.getElementById("chat-input");
+const btn = document.getElementById("send-btn");
 
-  // Montando a mensagem como o corpo esperado pela API
-  const data = {
-    message: `Assunto: ${document.getElementById("assunto").value}\n` +
-             `Descrição: ${document.getElementById("descricao").value}\n` +
-             `Setor: ${document.getElementById("setor").value}\n` +
-             `Solicitante: ${document.getElementById("solicitante").value}`,
-    history: [] // histórico inicial vazio
-  };
+function addMessage(text, sender) {
+  const div = document.createElement("div");
+  div.classList.add("chat-message", sender);
+  div.textContent = text;
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+async function sendMessage() {
+  const message = input.value.trim();
+  if(!message) return;
+
+  addMessage(message, "user");
+  input.value = "";
+
+  history.push({ role: "user", content: message });
 
   try {
-    const res = await fetch(API_CHAMADO, {
-      method:"POST",
-      headers:{ 
-        "Content-Type":"application/json",
-        "Authorization": "Bearer " + token
+    const token = localStorage.getItem("token");
+    const res = await fetch(API_CHAT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify({ message, history })
     });
 
-    if(res.ok){
-      alert("Chamado criado com sucesso!");
-      window.location.href = "listagemChamados.html";
+    if(res.ok) {
+      const data = await res.json();
+      const aiMessage = data.reply || "Sem resposta.";
+      addMessage(aiMessage, "ai");
+      history.push({ role: "assistant", content: aiMessage });
     } else {
-      const errText = await res.text();
-      alert("Erro: " + errText);
+      addMessage("Erro ao enviar mensagem.", "ai");
     }
-  } catch(err){
+  } catch(err) {
     console.error(err);
-    alert("Erro de conexão");
+    addMessage("Erro de conexão.", "ai");
   }
+}
+
+btn.addEventListener("click", sendMessage);
+input.addEventListener("keypress", (e)=>{
+  if(e.key === "Enter") sendMessage();
 });
 </script>
 </body>
