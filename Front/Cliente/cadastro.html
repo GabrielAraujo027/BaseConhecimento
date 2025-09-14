@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Usuário</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard">
+    <main class="main-content">
+      <section class="form-section">
+        <h1>Cadastro de Usuário</h1>
+        <form id="form-cadastro">
+          <label for="fullName">Nome Completo</label>
+          <input type="text" id="fullName" name="fullName" placeholder="Digite seu nome completo" required>
+
+          <label for="email">E-mail</label>
+          <input type="email" id="email" name="email" placeholder="Digite seu e-mail" required>
+
+          <label for="password">Senha</label>
+          <input type="password" id="password" name="password" placeholder="Digite sua senha" required>
+
+          <div class="acoes-form">
+            <button type="submit" class="btn-salvar">Cadastrar</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+<script>
+const API_CADASTRO = "https://172.20.18.68:7289/api/Auth/register";
+
+document.getElementById("form-cadastro").addEventListener("submit", async function(e){
+  e.preventDefault();
+
+  const cadastroDTO = {
+    fullName: document.getElementById("fullName").value,
+    email: document.getElementById("email").value,
+    password: document.getElementById("password").value
+  };
+
+  try {
+    const res = await fetch(API_CADASTRO, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cadastroDTO)
+    });
+
+    if(res.ok){
+      alert("Cadastro realizado com sucesso!");
+      window.location.href = "novoChamado.html"; // redireciona para a tela de novo chamado
+    } else {
+      const errorText = await res.text();
+      alert("Erro ao cadastrar: " + errorText);
+    }
+  } catch(err){
+    console.error(err);
+    alert("Erro de conexão com o servidor.");
+  }
+});
+</script>
+</body>
+</html>

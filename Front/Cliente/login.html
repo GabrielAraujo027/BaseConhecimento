@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard">
+    <main class="main-content">
+      <section class="form-section">
+        <h1>Login</h1>
+        <form id="form-login">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" name="email" placeholder="Digite seu e-mail" required>
+
+          <label for="password">Senha</label>
+          <input type="password" id="password" name="password" placeholder="Digite sua senha" required>
+
+          <div class="acoes-form">
+            <button type="submit" class="btn-salvar">Entrar</button>
+            <button type="button" class="btn-cancelar" onclick="window.location.href='cadastro.html'">Cadastrar</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+<script>
+const API_LOGIN = "http://172.20.18.68:7289/api/Auth/login";
+
+document.getElementById("form-login").addEventListener("submit", async function(e){
+  e.preventDefault();
+
+  const loginDTO = {
+    email: document.getElementById("email").value,
+    password: document.getElementById("password").value
+  };
+
+  try {
+    const res = await fetch(API_LOGIN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(loginDTO)
+    });
+
+    if(res.ok){
+      const data = await res.json();
+      alert("Login realizado com sucesso!");
+      
+      // Aqui você pode salvar o token (se houver) em localStorage ou sessionStorage
+      if(data.token) localStorage.setItem("token", data.token);
+
+      // Redireciona para a tela de novo chamado
+      window.location.href = "novoChamado.html";
+    } else {
+      const errorText = await res.text();
+      alert("Erro no login: " + errorText);
+    }
+  } catch(err){
+    console.error(err);
+    alert("Erro de conexão com o servidor.");
+  }
+});
+</script>
+</body>
+</html>
