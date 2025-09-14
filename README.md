@@ -17,17 +17,27 @@ O sistema auxilia colaboradores em questões de **TI, Facilities, Financeiro** e
 
 ## Funcionalidades
 
+### Gestão de Chamados
 - Listagem completa de chamados com filtros por ID, setor, assunto, solicitante, data e status.  
 - Exibição do status de chamados em painel lateral (Pendente, Em andamento, Concluído, Cancelado).  
 - Visualização detalhada de cada chamado ao clicar na tabela.  
 - Histórico do chamado atualizado automaticamente ao abrir detalhes.  
-- Ações para:
+- Ações disponíveis:
   - **Encaminhar** o chamado para outro setor (mantendo status Pendente).  
   - **Encerrar** o chamado (status Concluído).  
   - **Cancelar** o chamado (status Cancelado).  
 - Auto-scroll e atualização dinâmica da tabela e painel de status.  
 - Filtros interativos para localizar chamados rapidamente.  
 
+### Chat com IA
+- Interface de chat para comunicação direta com o motor de IA Ollama.  
+- Envio de mensagens do usuário e exibição de respostas do assistente IA em tempo real.  
+- Histórico da conversa mantido durante a sessão.  
+- Suporte a envio via **Enter** ou botão **Enviar**.  
+- Layout intuitivo com distinção visual entre mensagens do usuário e respostas da IA.  
+- Possibilidade de auxiliar na abertura de novos chamados ou fornecer suporte rápido sem intervenção humana.  
+
+---
 ---
 
 ## Estrutura do Projeto
