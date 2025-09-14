@@ -37,7 +37,7 @@
 
 /* Status colors */
 .status.pendente { color: #ff7e29; font-weight: bold; }
-.status.em\ andamento { color: #3498db; font-weight: bold; }
+.status.em-andamento { color: #3498db; font-weight: bold; }
 .status.concluído { color: #2ecc71; font-weight: bold; }
 .status.cancelado { color: #e74c3c; font-weight: bold; }
 
@@ -92,7 +92,7 @@
         </table>
       </div>
 
-      <aside class="chamado-detalhes">
+      <aside class="chamado-detalhes" id="painel-detalhes">
         <h2>Detalhes do Chamado</h2>
         <div class="info" id="detalhes-info">
           <p>Selecione um chamado para ver detalhes.</p>
@@ -134,6 +134,7 @@ const STATUS_MAP = {
   3: "Cancelado"
 };
 
+// Carregar todos os chamados
 async function carregarChamados() {
   try {
     const token = localStorage.getItem("token");
@@ -167,15 +168,49 @@ async function carregarChamados() {
   }
 }
 
-async function mostrarDetalhes(id) {
+// Atualizar chamado (PUT)
+async function atualizarChamado(id, statusEnum, setorResponsavel) {
   try {
     const token = localStorage.getItem("token");
     const res = await fetch(`${API_LISTA}/${id}`, {
-      headers: { "Authorization": `Bearer ${token}` }
+      method: "PUT",
+      headers: { 
+        "Content-Type":"application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ id, statusEnum, setorResponsavel })
     });
+    return res.ok;
+  } catch(err){
+    console.error(err);
+    return false;
+  }
+}
+
+// Limpar detalhes
+function limparDetalhes() {
+  chamadoSelecionado = null;
+  document.getElementById("detalhes-info").innerHTML = `<p>Selecione um chamado para ver detalhes.</p>`;
+  document.getElementById("detalhes-historico").innerHTML = ``;
+  document.getElementById("encaminhar-container").style.display = "none";
+}
+
+// Mostrar detalhes e atualizar para "Em andamento"
+async function mostrarDetalhes(id) {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_LISTA}/${id}`, { headers: { "Authorization": `Bearer ${token}` } });
     if(!res.ok) throw new Error("Erro ao buscar detalhes");
-    const chamado = await res.json();
+    let chamado = await res.json();
     chamadoSelecionado = chamado;
+
+    // Atualiza para "Em andamento" se não estiver
+    if(chamado.statusEnum !== 1) {
+      const atualizado = await atualizarChamado(chamado.id, 1, chamado.setorResponsavel);
+      if(atualizado){
+        chamado.statusEnum = 1;
+      }
+    }
 
     const statusTexto = STATUS_MAP[chamado.statusEnum] || chamado.statusEnum;
 
@@ -188,32 +223,14 @@ async function mostrarDetalhes(id) {
 
     document.getElementById("detalhes-historico").innerHTML = `
       <li>Chamado criado em ${new Date(chamado.dataCriacao || chamado.data).toLocaleString()}</li>
+      <li>Status atualizado para <strong>${STATUS_MAP[chamado.statusEnum]}</strong> ao abrir o chamado.</li>
     `;
+
+    carregarChamados();
+
   } catch(err) {
     console.error(err);
     alert("Erro ao buscar detalhes do chamado");
-  }
-}
-
-async function atualizarChamado(id, statusEnum, setorResponsavel) {
-  try {
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${API_LISTA}/${id}`, {
-      method: "PUT",
-      headers: { 
-        "Content-Type":"application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        id,
-        statusEnum,
-        setorResponsavel
-      })
-    });
-    return res.ok;
-  } catch(err){
-    console.error(err);
-    return false;
   }
 }
 
@@ -230,9 +247,8 @@ document.getElementById("confirmar-encaminhar").addEventListener("click", async 
   const sucesso = await atualizarChamado(chamadoSelecionado.id, 0, novoSetor); // 0 = Pendente
   if(sucesso){
     alert("Chamado encaminhado e status definido como Pendente!");
+    limparDetalhes();
     carregarChamados();
-    mostrarDetalhes(chamadoSelecionado.id);
-    document.getElementById("encaminhar-container").style.display = "none";
   } else {
     alert("Erro ao encaminhar chamado.");
   }
@@ -245,8 +261,8 @@ document.getElementById("btn-fechar").addEventListener("click", async () => {
   const sucesso = await atualizarChamado(chamadoSelecionado.id, 2, chamadoSelecionado.setorResponsavel); // 2 = Concluído
   if(sucesso){
     alert("Chamado encerrado com status Concluído!");
+    limparDetalhes();
     carregarChamados();
-    mostrarDetalhes(chamadoSelecionado.id);
   } else {
     alert("Erro ao encerrar chamado.");
   }
@@ -259,8 +275,8 @@ document.getElementById("btn-cancelar").addEventListener("click", async () => {
   const sucesso = await atualizarChamado(chamadoSelecionado.id, 3, chamadoSelecionado.setorResponsavel); // 3 = Cancelado
   if(sucesso){
     alert("Chamado cancelado!");
+    limparDetalhes();
     carregarChamados();
-    mostrarDetalhes(chamadoSelecionado.id);
   } else {
     alert("Erro ao cancelar chamado.");
   }
