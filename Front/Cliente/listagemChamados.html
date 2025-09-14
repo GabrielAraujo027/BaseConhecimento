@@ -120,22 +120,24 @@
 </style>
 </head>
 <body>
-<div class="dashboard">
-  <aside class="sidebar">
-    <div class="logo">Unitá</div>
+<div class="dashboard" style="display:flex; height:100vh;">
+  <aside class="sidebar" style="width:230px; padding:20px; background:#3a1c71; color:#fff; display:flex; flex-direction:column;">
+    <div class="logo" style="font-size:26px; font-weight:bold; margin-bottom:40px; text-align:center; color:#ff7e29;">Unitá</div>
     <nav class="menu">
-      <a href="novoChamado.html" class="menu-item">Novo Chamado</a>
+      <a href="novoChamado.html" class="menu-item" style="display:block; color:#fff; margin-bottom:15px; padding:10px 14px; border-radius:8px;">Novo Chamado</a>
     </nav>
+    <!-- Painel de Status -->
     <div class="status-panel" id="status-panel">
       <h3>Status dos Chamados</h3>
       <p>Pendente: <span id="count-pendente">0</span></p>
       <p>Em andamento: <span id="count-em-andamento">0</span></p>
       <p>Concluído: <span id="count-concluido">0</span></p>
       <p>Cancelado: <span id="count-cancelado">0</span></p>
+      <p>Tempo médio de conclusão (hrs): <span id="tempo-medio">0</span></p>
     </div>
   </aside>
 
-  <main class="main-content">
+  <main class="main-content" style="flex:1; display:flex; flex-direction:column; padding:20px;">
     <!-- Accordion de filtros -->
     <button id="accordion-filtros">Filtros</button>
     <div class="filtros-panel" id="filtros-panel">
@@ -146,15 +148,15 @@
       <input type="date" id="filter-data">
       <select id="filter-status">
         <option value="">Todos os status</option>
-        <option value="Pendente">Pendente</option>
-        <option value="Em andamento">Em andamento</option>
-        <option value="Concluído">Concluído</option>
-        <option value="Cancelado">Cancelado</option>
+        <option value="0">Pendente</option>
+        <option value="1">Em andamento</option>
+        <option value="2">Concluído</option>
+        <option value="3">Cancelado</option>
       </select>
     </div>
 
     <section class="table-section" style="display:flex; gap:20px; flex:1;">
-      <div class="table-container">
+      <div class="table-container" style="flex:1;">
         <table class="chamados-table" id="chamados-table">
           <thead>
             <tr>
@@ -172,7 +174,7 @@
         </table>
       </div>
 
-      <aside class="chamado-detalhes" id="painel-detalhes">
+      <aside class="chamado-detalhes" id="painel-detalhes" style="width:300px;">
         <h2>Detalhes do Chamado</h2>
         <div class="info" id="detalhes-info">
           <p>Selecione um chamado para ver detalhes.</p>
@@ -205,19 +207,23 @@
 
 <script>
 const API_LISTA = "http://172.20.18.68:5206/api/Chamados";
+const API_RELATORIO = "http://172.20.18.68:5206/api/Chamados/Relatorio";
 let chamadoSelecionado = null;
+let paginaAtual = 1;
+const pageSize = 20;
+let totalPaginas = 1;
 
-const STATUS_MAP = { 0: "Pendente", 1: "Em andamento", 2: "Concluído", 3: "Cancelado" };
+const STATUS_MAP = {0:"Pendente",1:"Em andamento",2:"Concluído",3:"Cancelado"};
 
 // Accordion horizontal
 const acc = document.getElementById("accordion-filtros");
 const panel = document.getElementById("filtros-panel");
-acc.addEventListener("click", () => {
+acc.addEventListener("click", ()=> {
   acc.classList.toggle("active");
-  panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+  panel.style.display = panel.style.display==="flex"?"none":"flex";
 });
 
-// Declaração correta dos filtros
+// Filtros
 const filterStatus = document.getElementById("filter-status");
 const filterSetor = document.getElementById("filter-setor");
 const filterId = document.getElementById("filter-id");
@@ -225,67 +231,39 @@ const filterAssunto = document.getElementById("filter-assunto");
 const filterSolicitante = document.getElementById("filter-solicitante");
 const filterData = document.getElementById("filter-data");
 
-filterStatus.addEventListener("input", aplicarFiltro);
-filterSetor.addEventListener("input", aplicarFiltro);
-filterId.addEventListener("input", aplicarFiltro);
-filterAssunto.addEventListener("input", aplicarFiltro);
-filterSolicitante.addEventListener("input", aplicarFiltro);
-filterData.addEventListener("input", aplicarFiltro);
+[filterStatus, filterSetor, filterId, filterAssunto, filterSolicitante, filterData]
+  .forEach(f => f.addEventListener("input", ()=> { paginaAtual=1; carregarChamados(); }));
 
-// Atualiza contagem de status
-function atualizarStatusPanel(chamados){
-  const counts = {0:0,1:0,2:0,3:0};
-  chamados.forEach(c => counts[c.statusEnum]++);
-  document.getElementById("count-pendente").textContent = counts[0];
-  document.getElementById("count-em-andamento").textContent = counts[1];
-  document.getElementById("count-concluido").textContent = counts[2];
-  document.getElementById("count-cancelado").textContent = counts[3];
-}
-
-// Carregar todos os chamados
-async function carregarChamados() {
+// Função carregar relatório
+async function carregarRelatorio() {
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch(API_LISTA, { headers: { "Authorization": `Bearer ${token}` } });
-    if(!res.ok) throw new Error("Erro ao buscar chamados");
-    const chamados = await res.json();
-
-    atualizarStatusPanel(chamados);
-
-    const tbody = document.getElementById("table-body");
-    tbody.innerHTML = "";
-
-    chamados.forEach(chamado => {
-      const tr = document.createElement("tr");
-      const statusTexto = STATUS_MAP[chamado.statusEnum] || chamado.statusEnum;
-
-      tr.innerHTML = `
-        <td>${chamado.id}</td>
-        <td>${chamado.setorResponsavel}</td>
-        <td>${chamado.titulo}</td>
-        <td>${chamado.solicitante || "-"}</td>
-        <td>${new Date(chamado.dataCriacao || chamado.data).toLocaleDateString()}</td>
-        <td class="status ${statusTexto.toLowerCase().replace(' ','-')}">${statusTexto}</td>
-      `;
-      tr.addEventListener("click", () => mostrarDetalhes(chamado.id));
-      tbody.appendChild(tr);
+    const res = await fetch(API_RELATORIO, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
     });
+    if(!res.ok) throw new Error("Erro ao buscar relatório");
 
-    aplicarFiltro(); // aplica filtro caso algum já tenha valor
+    const relatorio = await res.json();
+
+    document.getElementById("count-pendente").textContent = relatorio.pendentes;
+    document.getElementById("count-em-andamento").textContent = relatorio.emAndamento;
+    document.getElementById("count-concluido").textContent = relatorio.concluido;
+    document.getElementById("count-cancelado").textContent = relatorio.cancelado;
+    document.getElementById("tempo-medio").textContent = relatorio.tempoMedioConclusaoHoras;
 
   } catch(err) {
     console.error(err);
-    document.getElementById("table-body").innerHTML = `<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;
   }
 }
 
-// Atualizar chamado (PUT)
-async function atualizarChamado(id, statusEnum, setorResponsavel){
+// Atualizar chamado
+async function atualizarChamado(id,statusEnum,setorResponsavel){
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch(`${API_LISTA}/${id}`, {
+    const res = await fetch(`${API_LISTA}/${id}`,{
       method:"PUT",
-      headers: { "Content-Type":"application/json", "Authorization": `Bearer ${token}` },
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
       body: JSON.stringify({id,statusEnum,setorResponsavel})
     });
     return res.ok;
@@ -294,27 +272,27 @@ async function atualizarChamado(id, statusEnum, setorResponsavel){
 
 // Limpar detalhes
 function limparDetalhes(){
-  chamadoSelecionado = null;
-  document.getElementById("detalhes-info").innerHTML = `<p>Selecione um chamado para ver detalhes.</p>`;
-  document.getElementById("detalhes-historico").innerHTML = ``;
-  document.getElementById("encaminhar-container").style.display = "none";
+  chamadoSelecionado=null;
+  document.getElementById("detalhes-info").innerHTML=`<p>Selecione um chamado para ver detalhes.</p>`;
+  document.getElementById("detalhes-historico").innerHTML=``;
+  document.getElementById("encaminhar-container").style.display="none";
 }
 
 // Mostrar detalhes
 async function mostrarDetalhes(id){
   try {
     const token = localStorage.getItem("token");
-    const res = await fetch(`${API_LISTA}/${id}`, { headers: { "Authorization": `Bearer ${token}` } });
+    const res = await fetch(`${API_LISTA}/${id}`,{ headers:{"Authorization":`Bearer ${token}`}});
     if(!res.ok) throw new Error("Erro ao buscar detalhes");
     let chamado = await res.json();
     chamadoSelecionado = chamado;
 
-    if(chamado.statusEnum !== 1){
+    if(chamado.status!==1){
       const atualizado = await atualizarChamado(chamado.id,1,chamado.setorResponsavel);
-      if(atualizado) chamado.statusEnum=1;
+      if(atualizado) chamado.status=1;
     }
 
-    const statusTexto = STATUS_MAP[chamado.statusEnum] || chamado.statusEnum;
+    const statusTexto = STATUS_MAP[chamado.status] || chamado.status;
 
     document.getElementById("detalhes-info").innerHTML = `
       <p><strong>Título:</strong> ${chamado.titulo}</p>
@@ -325,7 +303,7 @@ async function mostrarDetalhes(id){
 
     document.getElementById("detalhes-historico").innerHTML = `
       <li>Chamado criado em ${new Date(chamado.dataCriacao || chamado.data).toLocaleString()}</li>
-      <li>Status atualizado para <strong>${STATUS_MAP[chamado.statusEnum]}</strong> ao abrir o chamado.</li>
+      <li>Status atualizado para <strong>${STATUS_MAP[chamado.status]}</strong> ao abrir o chamado.</li>
     `;
 
     carregarChamados();
@@ -336,56 +314,107 @@ async function mostrarDetalhes(id){
   }
 }
 
+// Carregar chamados com paginação e filtros
+async function carregarChamados(){
+  try {
+    const token = localStorage.getItem("token");
+
+    const params = new URLSearchParams();
+    if(filterStatus.value) params.append("status", filterStatus.value);
+    if(filterSetor.value) params.append("setor", filterSetor.value);
+    if(filterId.value) params.append("search", filterId.value);
+    if(filterAssunto.value) params.append("search", filterAssunto.value);
+    if(filterSolicitante.value) params.append("solicitante", filterSolicitante.value);
+    if(filterData.value) params.append("de", filterData.value);
+    params.append("page", paginaAtual);
+    params.append("pageSize", pageSize);
+
+    const res = await fetch(`${API_LISTA}?${params.toString()}`,{
+      headers:{"Authorization":`Bearer ${token}`}
+    });
+    if(!res.ok) throw new Error("Erro ao buscar chamados");
+
+    const data = await res.json();
+    totalPaginas = data.totalPages;
+
+    const tbody = document.getElementById("table-body");
+    tbody.innerHTML="";
+
+    if(data.items.length===0){
+      tbody.innerHTML=`<tr><td colspan="6">Nenhum chamado encontrado</td></tr>`;
+    } else {
+      data.items.forEach(chamado=>{
+        const tr=document.createElement("tr");
+        const statusTexto = STATUS_MAP[chamado.status] || chamado.status;
+
+        tr.innerHTML=`
+          <td>${chamado.id}</td>
+          <td>${chamado.setorResponsavel}</td>
+          <td>${chamado.titulo}</td>
+          <td>${chamado.solicitante||"-"}</td>
+          <td>${new Date(chamado.dataCriacao||chamado.data).toLocaleDateString()}</td>
+          <td class="status ${statusTexto.toLowerCase().replace(' ','-')}">${statusTexto}</td>
+        `;
+        tr.addEventListener("click",()=>mostrarDetalhes(chamado.id));
+        tbody.appendChild(tr);
+      });
+    }
+
+    carregarRelatorio();
+    atualizarControlesPaginacao();
+  } catch(err){
+    console.error(err);
+    document.getElementById("table-body").innerHTML=`<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;
+  }
+}
+
+// Controles de paginação
+function atualizarControlesPaginacao(){
+  let pagDiv = document.getElementById("paginacao");
+  if(!pagDiv){
+    pagDiv = document.createElement("div");
+    pagDiv.id="paginacao";
+    pagDiv.style.marginTop="10px";
+    pagDiv.style.display="flex";
+    pagDiv.style.gap="10px";
+    document.querySelector(".table-container").appendChild(pagDiv);
+  }
+  pagDiv.innerHTML = `
+    <button ${paginaAtual===1?'disabled':''} onclick="paginaAtual--; carregarChamados();">Anterior</button>
+    <span>Página ${paginaAtual} de ${totalPaginas}</span>
+    <button ${paginaAtual===totalPaginas?'disabled':''} onclick="paginaAtual++; carregarChamados();">Próxima</button>
+  `;
+}
+
 // Ações de botões
-document.getElementById("btn-encaminhar").addEventListener("click", ()=>{
-  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
-  document.getElementById("encaminhar-container").style.display="block";
+document.getElementById("btn-encaminhar").addEventListener("click",()=>{ 
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
+  document.getElementById("encaminhar-container").style.display="block"; 
 });
 
-document.getElementById("confirmar-encaminhar").addEventListener("click", async ()=>{
+document.getElementById("confirmar-encaminhar").addEventListener("click",async()=>{
   const novoSetor = document.getElementById("novo-setor").value;
   if(!novoSetor){ alert("Selecione um setor válido."); return; }
   const sucesso = await atualizarChamado(chamadoSelecionado.id,0,novoSetor);
-  if(sucesso){ alert("Chamado encaminhado e status definido como Pendente!"); limparDetalhes(); carregarChamados(); }
+  if(sucesso){ alert("Chamado encaminhado e status definido como Pendente!"); limparDetalhes(); carregarChamados();}
   else alert("Erro ao encaminhar chamado.");
 });
 
-document.getElementById("btn-fechar").addEventListener("click", async ()=>{
+document.getElementById("btn-fechar").addEventListener("click",async()=>{
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
   const sucesso = await atualizarChamado(chamadoSelecionado.id,2,chamadoSelecionado.setorResponsavel);
   if(sucesso){ alert("Chamado encerrado com status Concluído!"); limparDetalhes(); carregarChamados(); }
   else alert("Erro ao encerrar chamado.");
 });
 
-document.getElementById("btn-cancelar").addEventListener("click", async ()=>{
+document.getElementById("btn-cancelar").addEventListener("click",async()=>{
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
   const sucesso = await atualizarChamado(chamadoSelecionado.id,3,chamadoSelecionado.setorResponsavel);
   if(sucesso){ alert("Chamado cancelado!"); limparDetalhes(); carregarChamados(); }
   else alert("Erro ao cancelar chamado.");
 });
 
-// Filtros
-function aplicarFiltro(){
-  const fId = filterId.value;
-  const fSetor = filterSetor.value.toLowerCase();
-  const fAssunto = filterAssunto.value.toLowerCase();
-  const fSolicitante = filterSolicitante.value.toLowerCase();
-  const fData = filterData.value;
-  const fStatus = filterStatus.value.toLowerCase();
-
-  document.querySelectorAll("#chamados-table tbody tr").forEach(row=>{
-    const td = row.getElementsByTagName("td");
-    const match =
-      (!fId || td[0].textContent===fId) &&
-      (!fSetor || td[1].textContent.toLowerCase().includes(fSetor)) &&
-      (!fAssunto || td[2].textContent.toLowerCase().includes(fAssunto)) &&
-      (!fSolicitante || td[3].textContent.toLowerCase().includes(fSolicitante)) &&
-      (!fData || new Date(td[4].textContent).toISOString().split('T')[0]===fData) &&
-      (!fStatus || td[5].textContent.toLowerCase().includes(fStatus));
-    row.style.display = match ? "" : "none";
-  });
-}
-
+// Inicializa
 carregarChamados();
 </script>
 </body>
