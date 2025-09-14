@@ -1,4 +1,3 @@
-// Program.cs
 using BaseConhecimento.Data;
 using BaseConhecimento.Models.Auth;
 using BaseConhecimento.Services;
@@ -12,15 +11,12 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// MVC / APIs
 builder.Services.AddControllersWithViews();
 builder.Services.AddControllers();
 
-// EF Core
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
-// Identity + Roles
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(opt =>
     {
@@ -32,7 +28,6 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// JWT
 var jwt = builder.Configuration.GetSection("Jwt");
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? "CHAVE-DEV-ALTERE-NO-APPSETTINGS"));
 
@@ -57,14 +52,12 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// CORS (liste seus fronts http)
 builder.Services.AddCors(o => o.AddPolicy("Frontend", p =>
-    p.WithOrigins("http://127.0.0.1:5500", "http://localhost:5500")
+    p.AllowAnyOrigin()
      .AllowAnyHeader()
      .AllowAnyMethod()
 ));
 
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
@@ -83,27 +76,23 @@ builder.Services.AddSwaggerGen(opt =>
     opt.AddSecurityRequirement(new OpenApiSecurityRequirement { { securityScheme, Array.Empty<string>() } });
 });
 
-// HttpClient nomeado para o Ollama
 builder.Services.AddHttpClient("ollama", c =>
 {
     c.BaseAddress = new Uri("http://localhost:11434/");
 });
 
-// Serviços app
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();
 builder.Services.AddTransient<ILlamaService, LlamaService>();
 
 var app = builder.Build();
 
-// Auto-migrate (opcional)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
 }
 
-// PIPELINE (sem HTTPS/HSTS)
 app.UseSwagger();
 app.UseSwaggerUI();
 

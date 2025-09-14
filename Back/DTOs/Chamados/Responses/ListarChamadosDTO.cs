@@ -2,7 +2,7 @@
 
 namespace BaseConhecimento.DTOs.Chamados.Responses
 {
-    public class ListarChamadosResponse
+    public class ListarChamadosDTO
     {
         public int Id { get; set; }
         public string Titulo { get; set; } = string.Empty;

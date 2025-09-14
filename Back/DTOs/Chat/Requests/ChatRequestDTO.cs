@@ -5,5 +5,5 @@ namespace BaseConhecimento.DTOs.Chat;
 public class ChatRequestDTO
 {
     public string Message { get; set; } = "";
-    public List<ChatMessageDTO>? History { get; set; } // opcional
+    public List<ChatMessageDTO>? History { get; set; }
 }

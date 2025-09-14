@@ -1,7 +1,4 @@
-﻿// Services/LlamaService.cs
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text.Json;
+﻿using System.Text.Json;
 using BaseConhecimento.Services.Interfaces;
 
 namespace BaseConhecimento.Services
@@ -15,7 +12,6 @@ namespace BaseConhecimento.Services
 
         public LlamaService(IHttpClientFactory factory)
         {
-            // Usa o client nomeado registrado no Program.cs
             _http = factory.CreateClient("ollama");
         }
 
@@ -32,7 +28,6 @@ namespace BaseConhecimento.Services
             if (doc.RootElement.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
                 return r.GetString() ?? string.Empty;
 
-            // fallback defensivo para variações de payload
             try
             {
                 var parsed = await res.Content.ReadFromJsonAsync<GenerateResp>(cancellationToken: ct);

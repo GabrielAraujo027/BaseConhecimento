@@ -1,5 +1,4 @@
-﻿// Models/Chamados/Chamado.cs
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using BaseConhecimento.Models.Chamados.Enums;
 

@@ -1,5 +1,4 @@
-﻿// Controllers/ChamadosController.cs
-using BaseConhecimento.Data;
+﻿using BaseConhecimento.Data;
 using BaseConhecimento.DTOs.Chamados.Requests;
 using BaseConhecimento.DTOs.Chamados.Responses;
 using BaseConhecimento.DTOs.Common;
@@ -23,8 +22,6 @@ public class ChamadosController : ControllerBase
         => User?.FindFirstValue(ClaimTypes.Email)
            ?? User?.Claims.FirstOrDefault(c => c.Type.Equals("email", StringComparison.OrdinalIgnoreCase))?.Value;
 
-    // ========================= LISTAGEM (com filtros + paginação) =========================
-    // GET /api/chamados?status=Pendente&setor=TI&solicitante=joao@x.com&de=2025-09-01&ate=2025-09-14&search=impressora&page=1&pageSize=20
     [Authorize(Roles = "Atendente")]
     [HttpGet]
     public async Task<ActionResult<ResultadoPaginado<ListarChamadosDTO>>> Listar(
@@ -35,12 +32,12 @@ public class ChamadosController : ControllerBase
         [FromQuery] DateTime? ate,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 10)
     {
-        const int MAX_PAGE_SIZE = 200;
+        const int MAX_PAGE_SIZE = 100;
 
         page = page <= 0 ? 1 : page;
-        pageSize = pageSize <= 0 ? 20 : Math.Min(pageSize, MAX_PAGE_SIZE);
+        pageSize = pageSize <= 0 ? 10 : Math.Min(pageSize, MAX_PAGE_SIZE);
 
         IQueryable<Chamado> q = _ctx.Chamados.AsNoTracking();
 
@@ -107,7 +104,6 @@ public class ChamadosController : ControllerBase
         return Ok(result);
     }
 
-    // ========================= DETALHE =========================
     [Authorize(Roles = "Atendente")]
     [HttpGet("{id:int}")]
     public async Task<ActionResult<Chamado>> GetById(int id)
@@ -116,8 +112,6 @@ public class ChamadosController : ControllerBase
         return item is null ? NotFound() : item;
     }
 
-    // ========================= CRIAR =========================
-    // Qualquer usuário autenticado pode abrir chamado
     [Authorize]
     [HttpPost]
     public async Task<ActionResult<Chamado>> Create([FromBody] CriarChamadoDTO request)
@@ -138,7 +132,6 @@ public class ChamadosController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = chamado.Id }, chamado);
     }
 
-    // ========================= ATUALIZAR =========================
     [Authorize(Roles = "Atendente")]
     [HttpPut("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] AlterarChamadoDTO request)
@@ -162,7 +155,6 @@ public class ChamadosController : ControllerBase
         return Ok(entity);
     }
 
-    // ========================= DELETAR =========================
     [Authorize(Roles = "Atendente")]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
@@ -175,8 +167,6 @@ public class ChamadosController : ControllerBase
         return NoContent();
     }
 
-    // ========================= RELATÓRIO =========================
-    // GET /api/chamados/relatorio?inicio=2025-09-01T00:00:00Z&fim=2025-09-14T23:59:59Z&setor=TI
     [Authorize(Roles = "Atendente")]
     [HttpGet("relatorio")]
     public async Task<ActionResult<RelatorioChamadoDTO>> Relatorio(

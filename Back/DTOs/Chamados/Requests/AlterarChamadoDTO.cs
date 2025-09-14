@@ -1,5 +1,4 @@
-﻿using BaseConhecimento.DTOs.Common;
-using BaseConhecimento.Models.Chamados.Enums;
+﻿using BaseConhecimento.Models.Chamados.Enums;
 using System.ComponentModel.DataAnnotations;
 
 namespace BaseConhecimento.DTOs.Chamados.Requests
