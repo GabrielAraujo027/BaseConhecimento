@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Json;
+﻿using BaseConhecimento.Services.Interfaces;
+using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace BaseConhecimento.Services;

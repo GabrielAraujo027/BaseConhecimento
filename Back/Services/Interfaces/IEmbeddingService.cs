@@ -1,4 +1,4 @@
-﻿namespace BaseConhecimento.Services;
+﻿namespace BaseConhecimento.Services.Interfaces;
 
 public interface IEmbeddingService
 {

@@ -6,7 +6,7 @@ using BaseConhecimento.DTOs.Knowledge.Requests;
 using BaseConhecimento.Models.Chamados;
 using BaseConhecimento.Models.Chamados.Enums;
 using BaseConhecimento.Models.Knowledge;
-using BaseConhecimento.Services;
+using BaseConhecimento.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,11 +18,13 @@ public class KnowledgeController : ControllerBase
 {
     private readonly AppDbContext _ctx;
     private readonly IEmbeddingService _emb;
+    private readonly ILlamaService _llama;
 
-    public KnowledgeController(AppDbContext ctx, IEmbeddingService emb)
+    public KnowledgeController(AppDbContext ctx, IEmbeddingService emb, ILlamaService llama)
     {
         _ctx = ctx;
         _emb = emb;
+        _llama = llama;
     }
 
     private sealed class ScoredItem
@@ -44,7 +46,8 @@ public class KnowledgeController : ControllerBase
             Conteudo = dto.Conteudo
         };
 
-        var emb = await _emb.CreateEmbeddingAsync(dto.Conteudo, ct);
+        var textoCompleto = $"{dto.Conteudo} {dto.PerguntasFrequentes}";
+        var emb = await _emb.CreateEmbeddingAsync(textoCompleto, ct);
         item.SetEmbedding(emb);
 
         _ctx.KnowledgeBase.Add(item);
@@ -72,7 +75,8 @@ public class KnowledgeController : ControllerBase
                 Conteudo = dto.Conteudo
             };
 
-            var emb = await _emb.CreateEmbeddingAsync(dto.Conteudo, ct);
+            var textoCompleto = $"{dto.Conteudo} {dto.PerguntasFrequentes}";
+            var emb = await _emb.CreateEmbeddingAsync(textoCompleto, ct);
             item.SetEmbedding(emb);
 
             entidades.Add(item);
@@ -89,45 +93,63 @@ public class KnowledgeController : ControllerBase
         return Ok(result);
     }
 
-    // -------- Chat (1 artigo ou chamado) --------
     [HttpPost("chat")]
-    public async Task<ActionResult<ChatKnowledgeResponseDTO>> Chat([FromBody] ChatKnowledgeRequestDTO req, CancellationToken ct)
+    public async Task<ActionResult<ChatKnowledgeResponseDTO>> Chat(
+    [FromBody] ChatKnowledgeRequestDTO req,
+    CancellationToken ct)
     {
         if (req == null || string.IsNullOrWhiteSpace(req.Message))
             return BadRequest(new { error = "Message é obrigatório" });
 
-        // 1) embedding real da pergunta
+        // 1) Gerar embedding da pergunta do usuário
         var qEmb = await _emb.CreateEmbeddingAsync(req.Message, ct);
 
-        // 2) ranking (top-1)
+        // 2) Trazer todos os artigos (conteúdo + perguntas frequentes contam para embedding)
         var items = await _ctx.KnowledgeBase.AsNoTracking().ToListAsync(ct);
-        if (items.Count == 0) return await AbrirChamadoEDevolver(req.Message);
+        if (items.Count == 0)
+            return await AbrirChamadoEDevolver(req.Message);
 
         var ranked = items
-            .Select(i => new ScoredItem
+            .Select(i =>
             {
-                Item = i,
-                Score = CosineSimilarity(qEmb, i.GetEmbedding())
+                // Combinar conteúdo + perguntas frequentes para enriquecer similaridade
+                var textoCompleto = $"{i.Conteudo} {i.PerguntasFrequentes}";
+                var embItem = i.GetEmbedding();
+                var score = CosineSimilarity(qEmb, embItem);
+                return new ScoredItem { Item = i, Score = score };
             })
             .OrderByDescending(x => x.Score)
-            .Take(1)
+            .Take(1) // só o top-1
             .ToList();
 
-        var highThreshold = 0.70f; // ajuste se necessário
+        var highThreshold = 0.70f; // ajustável
 
         if (ranked.Any() && ranked[0].Score >= highThreshold)
         {
-            var top = ranked[0].Item;
-            var reply =
-$@"Tópico selecionado: {top.Categoria} / {top.Subcategoria}
-Resposta:
-{top.Conteudo}";
-            return Ok(new ChatKnowledgeResponseDTO { Reply = reply });
+            var artigo = ranked[0].Item;
+
+            var contexto =
+                $@"O usuário perguntou: ""{req.Message}"".
+            Base de conhecimento encontrada:
+            Categoria: {artigo.Categoria}
+            Subcategoria: {artigo.Subcategoria}
+            Conteúdo: {artigo.Conteudo}
+
+            Gere uma resposta clara, objetiva, amigável, com tom humano, sem repetir literalmente o artigo.
+            Explique em até 5 linhas.";
+
+            var reply = await _llama.GenerateAsync(contexto, ct);
+
+            return Ok(new ChatKnowledgeResponseDTO
+            {
+                Reply = reply
+            });
         }
 
-        // Sem confiança → abrir chamado
+        // 4) Caso não encontre nada relevante → cria chamado
         return await AbrirChamadoEDevolver(req.Message);
     }
+
 
     // -------- Helpers --------
     private static bool Validar(IngestKnowledgeDTO dto, out string erro)

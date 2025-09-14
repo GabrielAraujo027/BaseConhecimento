@@ -1,5 +1,6 @@
 using BaseConhecimento.Data;
 using BaseConhecimento.Services;
+using BaseConhecimento.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,8 @@ builder.Services.AddHttpClient("ollama", client =>
 
 // Serviço de embeddings (usa Ollama)
 builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();
+
+builder.Services.AddHttpClient<ILlamaService, LlamaService>();
 
 var app = builder.Build();
 
