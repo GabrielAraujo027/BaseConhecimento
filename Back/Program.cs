@@ -66,11 +66,18 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // -------------------------
-// CORS (ajuste para produção)
+// CORS (permite qualquer origem/método/header)
 // -------------------------
-builder.Services.AddCors(o => o.AddPolicy("Frontend", p =>
-    p.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()
-));
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .SetIsOriginAllowed(_ => true)   // aceita QUALQUER origem
+                                             // .AllowCredentials()            // NÃO usar com Bearer simples
+    );
+});
 
 // -------------------------
 // Swagger (com JWT Bearer)
@@ -93,7 +100,7 @@ builder.Services.AddSwaggerGen(opt =>
     opt.AddSecurityDefinition("Bearer", securityScheme);
     opt.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
-        { securityScheme, new string[] { } }
+        { securityScheme, Array.Empty<string>() }
     });
 });
 
@@ -109,13 +116,13 @@ builder.Services.AddHttpClient("ollama", client =>
 // Serviços de aplicação
 // -------------------------
 builder.Services.AddScoped<ITokenService, TokenService>();                  // gera JWT
-builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();    // serviço de embeddings
-builder.Services.AddHttpClient<ILlamaService, LlamaService>();              // serviço Llama (se utilizado)
+builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();    // embeddings
+builder.Services.AddHttpClient<ILlamaService, LlamaService>();              // Llama (se usar)
 
 var app = builder.Build();
 
 // -------------------------
-// Migrations + Seed (roles + usuário com senha)
+// Migrations + Seed (roles + usuário opcional)
 // -------------------------
 using (var scope = app.Services.CreateScope())
 {
@@ -128,10 +135,12 @@ using (var scope = app.Services.CreateScope())
     // Cria roles padrão
     var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var role in new[] { "Solicitante", "Atendente" })
+    {
         if (!await roleMgr.RoleExistsAsync(role))
             await roleMgr.CreateAsync(new IdentityRole(role));
+    }
 
-    // Seed de usuário via appsettings (Email + Password + Role)
+    // Seed opcional via appsettings:
     // "Auth": { "SeedUser": { "Email": "...", "Password": "...", "Role": "Atendente" } }
     var cfg = app.Configuration;
     var seedEmail = cfg["Auth:SeedUser:Email"];
@@ -156,30 +165,28 @@ using (var scope = app.Services.CreateScope())
         }
         else if (user is not null)
         {
-            // Garante a role caso já exista
             if (!await userMgr.IsInRoleAsync(user, seedRole))
                 await userMgr.AddToRoleAsync(user, seedRole);
         }
     }
 }
 
-// -------------------------
-// Pipeline
-// -------------------------
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
-app.UseCors("Frontend");
+
+app.UseCors("Frontend");         // CORS entre Routing e Auth
 
 app.UseAuthentication();
 app.UseAuthorization();
