@@ -163,13 +163,10 @@ namespace BaseConhecimento.Controllers
                 var closer = Pick(Closers, req.Message);
 
                 var resposta =
-$@"{opener}
-
-{artigo.Categoria} - {artigo.Subcategoria}
-
-{artigo.Conteudo}
-
-{closer}";
+                $@"{opener}
+                {artigo.Categoria} - {artigo.Subcategoria}
+                {artigo.Conteudo}
+                {closer}";
 
                 return Ok(new ChatKnowledgeResponseDTO { Reply = resposta });
             }
@@ -178,7 +175,6 @@ $@"{opener}
             return await AbrirChamadoEDevolver(req.Message);
         }
 
-        // ---------------- Helpers ----------------
         private static bool Validar(IngestKnowledgeDTO dto, out string erro)
         {
             if (dto is null) { erro = "Payload inválido."; return false; }
