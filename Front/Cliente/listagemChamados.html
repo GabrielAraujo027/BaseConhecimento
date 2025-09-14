@@ -137,6 +137,8 @@ tbody tr:hover { background:#f0e8ff; cursor:pointer; }
 .btn-responder { background:#3a1c71; }
 .btn-fechar { background:#2ecc71; }
 .btn-cancelar { background:#e74c3c; }
+.btn-capturar { background:#3498db; color:#fff; }
+.btn-capturar:hover { transform: scale(1.05); }
 
 /* Encaminhar container */
 #encaminhar-container { display:none; margin-top:10px; flex-direction:column; gap:8px; }
@@ -215,6 +217,7 @@ tbody tr:hover { background:#f0e8ff; cursor:pointer; }
           <ul class="historico-chamado" id="detalhes-historico"></ul>
         </div>
         <div class="acoes">
+          <button class="btn-capturar" id="btn-capturar">Capturar Chamado</button>
           <button class="btn-responder" id="btn-encaminhar">Encaminhar</button>
           <button class="btn-fechar" id="btn-fechar">Encerrar</button>
           <button class="btn-cancelar" id="btn-cancelar">Cancelar</button>
@@ -241,7 +244,7 @@ const API_LISTA = "http://172.20.18.68:5206/api/Chamados";
 const API_RELATORIO = "http://172.20.18.68:5206/api/Chamados/Relatorio";
 let chamadoSelecionado = null;
 let paginaAtual = 1;
-const pageSize = 20;
+const pageSize = 5;
 let totalPaginas = 1;
 const STATUS_MAP = {0:"Pendente",1:"Em andamento",2:"Concluído",3:"Cancelado"};
 
@@ -299,10 +302,7 @@ async function mostrarDetalhes(id){
     if(!res.ok) throw new Error("Erro ao buscar detalhes");
     let c = await res.json();
     chamadoSelecionado = c;
-    if(c.status!==1){
-      const atualizado = await atualizarChamado(c.id,1,c.setorResponsavel);
-      if(atualizado) c.status=1;
-    }
+
     const statusTexto = STATUS_MAP[c.status] || c.status;
     document.getElementById("detalhes-info").innerHTML = `
       <p><strong>Título:</strong> ${c.titulo}</p>
@@ -312,7 +312,7 @@ async function mostrarDetalhes(id){
     `;
     document.getElementById("detalhes-historico").innerHTML = `
       <li>Chamado criado em ${new Date(c.dataCriacao||c.data).toLocaleString()}</li>
-      <li>Status atualizado para <strong>${STATUS_MAP[c.status]}</strong> ao abrir o chamado.</li>
+      <li>Status atual: <strong>${STATUS_MAP[c.status]}</strong></li>
     `;
     carregarChamados();
   }catch(err){ console.error(err); alert("Erro ao buscar detalhes do chamado"); }
@@ -371,10 +371,24 @@ function atualizarControlesPaginacao(){
 }
 
 // Botões de ação
+document.getElementById("btn-capturar").addEventListener("click", async()=>{
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+  if(chamadoSelecionado.status === 1){ alert("Chamado já está em andamento."); return; }
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, 1, chamadoSelecionado.setorResponsavel);
+  if(sucesso){
+    alert("Chamado capturado e agora está em andamento!");
+    mostrarDetalhes(chamadoSelecionado.id);
+    carregarChamados();
+  } else {
+    alert("Erro ao capturar chamado.");
+  }
+});
+
 document.getElementById("btn-encaminhar").addEventListener("click",()=>{ 
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
   document.getElementById("encaminhar-container").style.display="flex"; 
 });
+
 document.getElementById("confirmar-encaminhar").addEventListener("click",async()=>{
   const novoSetor = document.getElementById("novo-setor").value;
   if(!novoSetor){ alert("Selecione um setor válido."); return; }
@@ -382,6 +396,7 @@ document.getElementById("confirmar-encaminhar").addEventListener("click",async()
   if(sucesso){ alert("Chamado encaminhado!"); limparDetalhes(); carregarChamados();}
   else alert("Erro ao encaminhar chamado.");
 });
+
 document.getElementById("btn-fechar").addEventListener("click",async()=>{
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
   if(confirm("Deseja realmente encerrar este chamado?")){
@@ -390,6 +405,7 @@ document.getElementById("btn-fechar").addEventListener("click",async()=>{
     else alert("Erro ao encerrar chamado.");
   }
 });
+
 document.getElementById("btn-cancelar").addEventListener("click",async()=>{
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
   if(confirm("Deseja realmente cancelar este chamado?")){
