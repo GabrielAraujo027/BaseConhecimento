@@ -61,7 +61,7 @@ document.querySelector(".form-chamado").addEventListener("submit", async functio
   };
 
   try {
-    const res = await fetch("https://172.20.18.68:7289/api/Chamados", {
+    const res = await fetch("http://172.20.18.68:7289/api/Chamados", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(chamadoDTO)
