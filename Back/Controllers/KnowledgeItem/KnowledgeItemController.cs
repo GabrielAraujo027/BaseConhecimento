@@ -1,7 +1,5 @@
-﻿// Controllers/KnowledgeController.cs
-using BaseConhecimento.Data;
+﻿using BaseConhecimento.Data;
 using BaseConhecimento.DTOs.Chamados.Requests;
-using BaseConhecimento.DTOs.Chat;
 using BaseConhecimento.DTOs.Chat.Requests;
 using BaseConhecimento.DTOs.Knowledge;
 using BaseConhecimento.DTOs.Knowledge.Requests;
@@ -45,7 +43,6 @@ namespace BaseConhecimento.Controllers
             => User?.FindFirstValue(ClaimTypes.Email)
                ?? User?.Claims.FirstOrDefault(c => c.Type.Equals("email", StringComparison.OrdinalIgnoreCase))?.Value;
 
-        // ---------------- Ingest (1) ----------------
         [HttpPost("ingest")]
         [Authorize(Roles = "Atendente")]
         public async Task<IActionResult> Ingest([FromBody] IngestKnowledgeDTO dto, CancellationToken ct)
@@ -70,7 +67,6 @@ namespace BaseConhecimento.Controllers
             return Ok(new { message = "Artigo salvo na base de conhecimento", id = item.Id });
         }
 
-        // -------------- Ingest (batch) --------------
         [HttpPost("ingest/batch")]
         [Authorize(Roles = "Atendente")]
         public async Task<IActionResult> IngestBatch([FromBody] List<IngestKnowledgeDTO> itens, CancellationToken ct)
@@ -109,7 +105,6 @@ namespace BaseConhecimento.Controllers
             return Ok(result);
         }
 
-        // -------------- Chat: Top-K híbrido + margem; handoff decidido por LLM --------------
         [AllowAnonymous]
         [HttpPost("chat")]
         public async Task<ActionResult<ChatKnowledgeResponseDTO>> Chat(
@@ -119,17 +114,13 @@ namespace BaseConhecimento.Controllers
             if (req == null || string.IsNullOrWhiteSpace(req.Message))
                 return BadRequest(new { error = "Message é obrigatório" });
 
-            // 1) Expandir consulta com sinônimos (melhora recall sem custo grande)
             var expanded = ExpandQuery(req.Message);
 
-            // 2) Embedding da pergunta (uma vez)
             var qEmb = await _emb.CreateEmbeddingAsync(expanded, ct);
 
-            // 3) Recuperação: Top-K por embedding
             var items = await _ctx.KnowledgeBase.AsNoTracking().ToListAsync(ct);
             if (items.Count == 0)
             {
-                // Base vazia → classificador decide se abre chamado (com contexto mínimo)
                 var llamaDecWhenEmpty = await TryLlamaHandOffAsync(req, null, ct);
                 if (llamaDecWhenEmpty.HandOff)
                 {
@@ -161,7 +152,6 @@ namespace BaseConhecimento.Controllers
                 .Take(TOP_K)
                 .ToList();
 
-            // 4) Fusão com overlap léxico (conteúdo + FAQs)
             var fused = prelim.Select(x =>
             {
                 var text = $"{x.Item.Conteudo} {x.Item.PerguntasFrequentes}";
@@ -172,14 +162,12 @@ namespace BaseConhecimento.Controllers
             .OrderByDescending(x => x.Score)
             .ToList();
 
-            // 5) Confiança adaptativa (alto OU margem sobre o 2º)
             float top1 = fused[0].Score;
             float top2 = fused.Count > 1 ? fused[1].Score : 0f;
             bool confident = (top1 >= 0.76f) || (top1 >= 0.64f && (top1 - top2) >= 0.10f);
 
             var artigo = fused[0].Item;
 
-            // 6) Se NÃO confiante → chamar classificador LLM para decidir handoff/sector/title
             LlamaDecision llamaDecision = confident
                 ? new LlamaDecision(false, null, null)
                 : await TryLlamaHandOffAsync(req, artigo, ct);
@@ -201,31 +189,26 @@ namespace BaseConhecimento.Controllers
                 return Ok(new ChatKnowledgeResponseDTO { Reply = reply, TicketId = ticketId });
             }
 
-            // 7) Se confiante → responde (sem Llama na geração, rápido)
             if (confident && artigo is not null)
             {
                 var opener = Pick(Openers, req.Message);
                 var closer = Pick(Closers, req.Message);
 
                 var resposta =
-$@"{opener}
+                $@"{opener}
+                {artigo.Categoria} - {artigo.Subcategoria}
+                {artigo.Conteudo}
+                {closer}";
 
-{artigo.Categoria} - {artigo.Subcategoria}
-
-{artigo.Conteudo}
-
-{closer}";
                 return Ok(new ChatKnowledgeResponseDTO { Reply = resposta });
             }
 
-            // 8) Baixa confiança e classificador não pediu mão do humano → saída neutra
             return Ok(new ChatKnowledgeResponseDTO
             {
                 Reply = "Não encontrei uma correspondência clara na base. Posso abrir um chamado para o setor responsável, se preferir."
             });
         }
 
-        // ---------------- Classificador de handoff (LLM) ----------------
         private sealed record LlamaDecision(bool HandOff, string? Sector, string? Title);
 
         private async Task<LlamaDecision> TryLlamaHandOffAsync(
@@ -244,24 +227,20 @@ $@"{opener}
                 var artigoHint = artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}";
 
                 var prompt =
-$@"
-Você é um classificador. Dado o diálogo, responda em JSON estrito:
-{{
-  ""handoff"": true|false,        // true se o usuário quer que um humano execute/assuma
-  ""sector"": ""TI|Facilities|RH|Financeiro|Compras|Segurança da Informação|Logística|Produção|Processos|Data & Analytics|Qualidade|Jurídico|Marketing|Comercial|Infra & DevOps|Atendimento Humano|"" ou """",
-  ""title"": ""título curto do chamado""
-}}
-
-Histórico:
-{string.Join("\n", hist.Select(h => $"{h.role}: {h.content}"))}
-
-Mensagem atual:
-{req.Message}
-
-Artigo relacionado: {artigoHint}
-
-Saída apenas JSON válido.
-";
+                    $@"
+                    Você é um classificador. Dado o diálogo, responda em JSON estrito:
+                    {{
+                      ""handoff"": true|false,        // true se o usuário quer que um humano execute/assuma
+                      ""sector"": ""TI|Facilities|RH|Financeiro|Compras|Segurança da Informação|Logística|Produção|Processos|Data & Analytics|Qualidade|Jurídico|Marketing|Comercial|Infra & DevOps|Atendimento Humano|"" ou """",
+                      ""title"": ""título curto do chamado""
+                    }}
+                    Histórico:
+                    {string.Join("\n", hist.Select(h => $"{h.role}: {h.content}"))}
+                    Mensagem atual:
+                    {req.Message}
+                    Artigo relacionado: {artigoHint}
+                    Saída apenas JSON válido.
+                    ";
 
                 var raw = await _llama.GenerateAsync(prompt, ct);
                 var json = ExtractJson(raw);
@@ -288,7 +267,6 @@ Saída apenas JSON válido.
             return m.Success ? m.Value : null;
         }
 
-        // ---------------- Helpers ----------------
         private static bool Validar(IngestKnowledgeDTO dto, out string erro)
         {
             if (dto is null) { erro = "Payload inválido."; return false; }
@@ -298,7 +276,6 @@ Saída apenas JSON válido.
             erro = ""; return true;
         }
 
-        // Tokenização & Overlap léxico
         private static IEnumerable<string> Tok(string s) =>
             Regex.Matches(s ?? "", @"[A-Za-zÀ-ÿ0-9]+")
                  .Select(m => m.Value.ToLowerInvariant())
@@ -313,7 +290,6 @@ Saída apenas JSON válido.
             return (float)inter / Math.Max(1, qs.Count);
         }
 
-        // Sinônimos simples (expande a consulta em PT-BR)
         private static readonly (string key, string[] syn)[] Synonyms = new[]
         {
             ("vale refeicao", new[] {"vale-refeicao","vr","ticket refeição","ticket alimentacao","auxilio alimentacao"}),
@@ -338,7 +314,6 @@ Saída apenas JSON válido.
             return extra.Count == 0 ? q : q + " " + string.Join(' ', extra);
         }
 
-        // Respostas rápidas (sem Llama)
         private static readonly string[] Openers = {
             "Encontrei algo que pode te ajudar:",
             "Beleza — aqui vai o passo a passo:",
@@ -374,13 +349,13 @@ Saída apenas JSON válido.
                 .ToList();
 
             return
-$@"Solicitação aberta automaticamente pelo assistente.
+            $@"Solicitação aberta automaticamente pelo assistente.
 
-Histórico recente:
-{string.Join("\n", hist.TakeLast(8))}
+            Histórico recente:
+            {string.Join("\n", hist.TakeLast(8))}
 
-Mensagem do usuário: {req.Message}
-Artigo relacionado: {(artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}")}";
+            Mensagem do usuário: {req.Message}
+            Artigo relacionado: {(artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}")}";
         }
 
         private static string InferTicketTitle(string userMsg, KnowledgeItem? artigo)
@@ -441,24 +416,6 @@ Artigo relacionado: {(artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Su
             return null;
         }
 
-        private async Task<ActionResult<ChatKnowledgeResponseDTO>> AbrirChamadoEDevolver(string pergunta)
-        {
-            var dtoChamado = new CriarChamadoDTO
-            {
-                Titulo = "[BOT] Dúvida sem resposta na base",
-                Descricao = $"Pergunta do usuário: {pergunta}"
-            };
-
-            var id = await CriarChamadoAutomatico(dtoChamado, "TI");
-
-            var msg = id > 0
-                ? $"Não encontrei resposta na base. Abri automaticamente o chamado #{id}."
-                : "Não encontrei resposta na base e não foi possível abrir o chamado automaticamente.";
-
-            return Ok(new ChatKnowledgeResponseDTO { Reply = msg, TicketId = id > 0 ? id : null });
-        }
-
-        // Cria chamado definindo Data & Solicitante
         private async Task<int> CriarChamadoAutomatico(CriarChamadoDTO request, string setor)
         {
             try

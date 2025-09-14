@@ -204,9 +204,14 @@ public class ChamadosController : ControllerBase
         var concluidos = await q.Where(c => c.StatusEnum == StatusChamadoEnum.Concluido).CountAsync();
         var cancelados = await q.Where(c => c.StatusEnum == StatusChamadoEnum.Cancelado).CountAsync();
 
-        double? mediaMin = await q
+        var diferencasEmMinutos = await q
             .Where(c => c.StatusEnum == StatusChamadoEnum.Concluido && c.DataConclusao != null)
-            .AverageAsync(c => (double?)EF.Functions.DateDiffMinute(c.DataCriacao, c.DataConclusao!.Value));
+            .Select(c => (c.DataConclusao.Value - c.DataCriacao).TotalMinutes)
+            .ToListAsync();
+
+        double? mediaMin = diferencasEmMinutos.Any()
+            ? diferencasEmMinutos.Average()
+            : null;
 
         int tempoMedioHoras = mediaMin.HasValue
             ? (int)Math.Round(mediaMin.Value / 60.0)
