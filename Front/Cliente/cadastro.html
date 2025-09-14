@@ -30,7 +30,7 @@
   </div>
 
 <script>
-const API_CADASTRO = "https://172.20.18.68:7289/api/Auth/register";
+const API_CADASTRO = "http://172.20.18.68:5206/api/Auth/register";
 
 document.getElementById("form-cadastro").addEventListener("submit", async function(e){
   e.preventDefault();
@@ -50,7 +50,7 @@ document.getElementById("form-cadastro").addEventListener("submit", async functi
 
     if(res.ok){
       alert("Cadastro realizado com sucesso!");
-      window.location.href = "novoChamado.html"; // redireciona para a tela de novo chamado
+      window.location.href = "login.html"; // volta para login
     } else {
       const errorText = await res.text();
       alert("Erro ao cadastrar: " + errorText);

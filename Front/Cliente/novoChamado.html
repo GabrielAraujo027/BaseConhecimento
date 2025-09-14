@@ -60,7 +60,7 @@ document.querySelector(".form-chamado").addEventListener("submit", async (e)=>{
   };
 
   try {
-    const res = await fetch("http://172.20.18.68:7289/api/Knowledge/chat", {
+    const res = await fetch("http://172.20.18.68:5206/api/Knowledge/chat", {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(data)

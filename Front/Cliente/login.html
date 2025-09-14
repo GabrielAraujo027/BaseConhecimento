@@ -28,7 +28,7 @@
   </div>
 
 <script>
-const API_LOGIN = "http://172.20.18.68:7289/api/Auth/login";
+const API_LOGIN = "http://172.20.18.68:5206/api/Auth/login";
 
 document.getElementById("form-login").addEventListener("submit", async function(e){
   e.preventDefault();
@@ -48,11 +48,7 @@ document.getElementById("form-login").addEventListener("submit", async function(
     if(res.ok){
       const data = await res.json();
       alert("Login realizado com sucesso!");
-      
-      // Aqui você pode salvar o token (se houver) em localStorage ou sessionStorage
       if(data.token) localStorage.setItem("token", data.token);
-
-      // Redireciona para a tela de novo chamado
       window.location.href = "novoChamado.html";
     } else {
       const errorText = await res.text();
