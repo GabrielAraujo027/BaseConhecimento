@@ -18,7 +18,7 @@ public class ChamadosController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Chamado>>> GetAll([FromQuery] FiltrarChamadoRequest request)
     {
-        if(!request.SetorResponsavel.IsNullOrEmpty())
+        if(!string.IsNullOrEmpty(request.SetorResponsavel))
         {
             _ctx.Chamados.Where(x => x.SetorResponsavel == request.SetorResponsavel);
         }
