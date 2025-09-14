@@ -8,7 +8,6 @@
 </head>
 <body>
 <div class="dashboard">
-
   <aside class="sidebar">
     <div class="logo">Unitá</div>
     <nav class="menu">
@@ -45,26 +44,39 @@
       </form>
     </section>
   </main>
-
 </div>
 
 <script>
+const API_CHAMADO = "http://172.20.18.68:5206/api/Knowledge/chat";
+
 document.querySelector(".form-chamado").addEventListener("submit", async (e)=>{
   e.preventDefault();
+  const token = localStorage.getItem("token");
+  if(!token){ 
+    alert("Faça login primeiro!"); 
+    window.location.href="login.html"; 
+    return; 
+  }
 
+  // Montando a mensagem como o corpo esperado pela API
   const data = {
-    Titulo: document.getElementById("assunto").value,
-    Descricao: document.getElementById("descricao").value,
-    SetorResponsavel: document.getElementById("setor").value,
-    Solicitante: document.getElementById("solicitante").value
+    message: `Assunto: ${document.getElementById("assunto").value}\n` +
+             `Descrição: ${document.getElementById("descricao").value}\n` +
+             `Setor: ${document.getElementById("setor").value}\n` +
+             `Solicitante: ${document.getElementById("solicitante").value}`,
+    history: [] // histórico inicial vazio
   };
 
   try {
-    const res = await fetch("http://172.20.18.68:5206/api/Knowledge/chat", {
+    const res = await fetch(API_CHAMADO, {
       method:"POST",
-      headers:{ "Content-Type":"application/json" },
+      headers:{ 
+        "Content-Type":"application/json",
+        "Authorization": "Bearer " + token
+      },
       body: JSON.stringify(data)
     });
+
     if(res.ok){
       alert("Chamado criado com sucesso!");
       window.location.href = "listagemChamados.html";

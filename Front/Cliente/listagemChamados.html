@@ -70,12 +70,25 @@
 </div>
 
 <script>
+// URL da API
 const API_LISTA = "http://172.20.18.68:5206/api/Chamados";
 let chamadoSelecionado = null;
 
+// Mapeamento de statusEnum
+const STATUS_MAP = {
+  0: "Aberto",
+  1: "Em andamento",
+  2: "Pendente",
+  3: "Fechado"
+};
+
+// ==== Carregar todos os chamados ====
 async function carregarChamados() {
   try {
-    const res = await fetch(API_LISTA);
+    const token = localStorage.getItem("token");
+    const res = await fetch(API_LISTA, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
     if(!res.ok) throw new Error("Erro ao buscar chamados");
     const chamados = await res.json();
 
@@ -84,63 +97,92 @@ async function carregarChamados() {
 
     chamados.forEach(chamado => {
       const tr = document.createElement("tr");
+      const statusTexto = STATUS_MAP[chamado.statusEnum] || chamado.statusEnum;
+
       tr.innerHTML = `
         <td>${chamado.id}</td>
         <td>${chamado.setorResponsavel}</td>
         <td>${chamado.titulo}</td>
         <td>${chamado.solicitante || "-"}</td>
         <td>${new Date(chamado.dataCriacao || chamado.data).toLocaleDateString()}</td>
-        <td class="status ${chamado.statusEnum.toLowerCase()}">${chamado.statusEnum}</td>
+        <td class="status ${statusTexto.toLowerCase()}">${statusTexto}</td>
       `;
       tr.addEventListener("click", () => mostrarDetalhes(chamado.id));
       tbody.appendChild(tr);
     });
-  } catch(err){
+  } catch(err) {
     console.error(err);
     document.getElementById("table-body").innerHTML = `<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;
   }
 }
 
+// ==== Mostrar detalhes do chamado ====
 async function mostrarDetalhes(id) {
   try {
-    const res = await fetch(`${API_LISTA}/${id}`);
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_LISTA}/${id}`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
     if(!res.ok) throw new Error("Erro ao buscar detalhes");
     const chamado = await res.json();
     chamadoSelecionado = chamado;
+
+    const statusTexto = STATUS_MAP[chamado.statusEnum] || chamado.statusEnum;
 
     document.getElementById("detalhes-info").innerHTML = `
       <p><strong>Título:</strong> ${chamado.titulo}</p>
       <p><strong>Descrição:</strong> ${chamado.descricao || "Sem descrição"}</p>
       <p><strong>Setor:</strong> ${chamado.setorResponsavel}</p>
-      <p><strong>Status:</strong> ${chamado.statusEnum}</p>
+      <p><strong>Status:</strong> ${statusTexto}</p>
     `;
 
     document.getElementById("detalhes-historico").innerHTML = `
       <li>Chamado criado em ${new Date(chamado.dataCriacao || chamado.data).toLocaleString()}</li>
     `;
-  } catch(err){
+  } catch(err) {
     console.error(err);
     alert("Erro ao buscar detalhes do chamado");
   }
 }
 
-document.getElementById("btn-fechar").addEventListener("click", async () => {
-  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+// ==== Função PUT genérica para atualizar chamado ====
+async function atualizarChamado(id, statusEnum, setorResponsavel) {
   try {
-    const res = await fetch(`${API_LISTA}/${chamadoSelecionado.id}`, {
-      method:"PUT",
-      headers: { "Content-Type":"application/json" },
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_LISTA}/${id}`, {
+      method: "PUT",
+      headers: { 
+        "Content-Type":"application/json",
+        "Authorization": `Bearer ${token}`
+      },
       body: JSON.stringify({
-        id: chamadoSelecionado.id,
-        statusEnum: "Fechado",
-        setorResponsavel: chamadoSelecionado.setorResponsavel
+        id,
+        statusEnum,
+        setorResponsavel
       })
     });
-    if(res.ok){ alert("Chamado encerrado!"); carregarChamados(); }
-    else alert("Erro ao encerrar chamado.");
-  } catch(err){ console.error(err); alert("Erro de conexão"); }
+    return res.ok;
+  } catch(err){
+    console.error(err);
+    return false;
+  }
+}
+
+// ==== Encerrar chamado ====
+document.getElementById("btn-fechar").addEventListener("click", async () => {
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, 3, chamadoSelecionado.setorResponsavel); // status 3 = Fechado
+  if(sucesso){
+    alert("Chamado encerrado!");
+    carregarChamados();
+    mostrarDetalhes(chamadoSelecionado.id); // atualizar detalhes
+  } else {
+    alert("Erro ao encerrar chamado.");
+  }
 });
 
+// ==== Encaminhar chamado ====
 document.getElementById("btn-encaminhar").addEventListener("click", () => {
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
   document.getElementById("encaminhar-container").style.display = "block";
@@ -149,22 +191,19 @@ document.getElementById("btn-encaminhar").addEventListener("click", () => {
 document.getElementById("confirmar-encaminhar").addEventListener("click", async () => {
   const novoSetor = document.getElementById("novo-setor").value;
   if(!novoSetor){ alert("Selecione um setor válido."); return; }
-  try {
-    const res = await fetch(`${API_LISTA}/${chamadoSelecionado.id}`, {
-      method:"PUT",
-      headers:{ "Content-Type":"application/json" },
-      body:JSON.stringify({
-        id: chamadoSelecionado.id,
-        statusEnum: chamadoSelecionado.statusEnum,
-        setorResponsavel: novoSetor
-      })
-    });
-    if(res.ok){ alert("Chamado encaminhado!"); carregarChamados(); document.getElementById("encaminhar-container").style.display="none"; }
-    else alert("Erro ao encaminhar chamado.");
-  } catch(err){ console.error(err); alert("Erro de conexão"); }
+
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, chamadoSelecionado.statusEnum, novoSetor);
+  if(sucesso){
+    alert("Chamado encaminhado!");
+    carregarChamados();
+    mostrarDetalhes(chamadoSelecionado.id);
+    document.getElementById("encaminhar-container").style.display = "none";
+  } else {
+    alert("Erro ao encaminhar chamado.");
+  }
 });
 
-// Filtros
+// ==== Filtros ====
 const filterStatus = document.getElementById("filter-status");
 const filterSetor = document.getElementById("filter-setor");
 
@@ -181,7 +220,7 @@ function aplicarFiltro() {
 filterStatus.addEventListener("input", aplicarFiltro);
 filterSetor.addEventListener("input", aplicarFiltro);
 
-// Inicializa
+// ==== Inicializa ====
 carregarChamados();
 </script>
 </body>
