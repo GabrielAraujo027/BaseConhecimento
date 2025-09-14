@@ -4,36 +4,102 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Listagem de Chamados</title>
-<link rel="stylesheet" href="style.css">
 <style>
-/* Scroll do corpo da tabela */
-.table-container {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 600px;
-}
+/* Reset básico */
+* { box-sizing: border-box; margin:0; padding:0; font-family: 'Segoe UI', sans-serif; }
 
-.table-container table {
-  width: 100%;
-  border-collapse: collapse;
-}
+/* Layout principal */
+.dashboard { display: flex; height: 100vh; }
 
-.table-container thead th {
-  position: sticky;
-  top: 0;
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  padding: 20px;
   background: #3a1c71;
   color: #fff;
-  padding: 12px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+.sidebar .logo { font-size: 28px; font-weight: bold; text-align: center; color: #ff7e29; }
+.sidebar nav a {
+  display: block;
+  color: #fff;
+  margin-bottom: 12px;
+  padding: 10px 15px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.3s;
+}
+.sidebar nav a:hover { background: #2a1152; }
+
+/* Status panel */
+.status-panel {
+  background: #ff7e29;
+  border-radius: 8px;
+  padding: 15px;
+  font-weight: bold;
+  color: #fff;
+}
+.status-panel h3 { margin-bottom: 10px; text-align:center; }
+.status-panel p { margin: 4px 0; }
+
+/* Main */
+.main-content {
+  flex:1;
+  display:flex;
+  flex-direction: column;
+  padding: 20px;
+  background: #f5f5f7;
+  min-height:0;
 }
 
-.table-container tbody td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
+/* Accordion Filtros */
+#accordion-filtros {
+  background: #3a1c71;
+  color: #fff;
+  cursor: pointer;
+  padding: 12px 20px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  border: none;
+}
+#accordion-filtros:after { content: '\002B'; font-weight: bold; }
+#accordion-filtros.active:after { content: "\2212"; }
+.filtros-panel {
+  display: none;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 15px;
+  background: #fff;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.filtros-panel input, .filtros-panel select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  flex: 1 1 150px;
 }
 
-.table-container tbody tr:hover {
-  background: #fdf3eb;
+/* Table */
+.table-section { display: flex; gap: 20px; flex:1; min-height:0; }
+.table-container { flex:1; display:flex; flex-direction:column; overflow-y:auto; background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); min-height:0; }
+table { width:100%; border-collapse: collapse; flex:1; }
+thead th {
+  position: sticky; top:0;
+  background: #3a1c71;
+  color:#fff;
+  padding:12px;
 }
+tbody td { padding:12px; border-bottom:1px solid #eee; }
+tbody tr:hover { background:#f0e8ff; cursor:pointer; }
 
 /* Status colors */
 .status.pendente { color: #ff7e29; font-weight: bold; }
@@ -41,92 +107,57 @@
 .status.concluído { color: #2ecc71; font-weight: bold; }
 .status.cancelado { color: #e74c3c; font-weight: bold; }
 
-/* Botões Detalhes */
-.chamado-detalhes .acoes button {
-  padding: 8px 14px;
-  margin-right: 8px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-  color: #fff;
-  transition: transform 0.2s, opacity 0.3s;
+/* Detalhes do chamado */
+.chamado-detalhes {
+  width: 320px;
+  background: #fff;
+  padding: 15px;
+  border-radius:8px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  display:flex; flex-direction:column; gap:15px;
 }
-
-.btn-responder { background: #3a1c71; }
-.btn-fechar { background: #2ecc71; }
-.btn-cancelar { background: #e74c3c; }
-
-/* Painel de status atualizado */
-.status-panel {
-  margin-top: 20px;
-  padding: 10px;
-  background: #ff7e29; /* laranja */
-  border-radius: 8px;
-  font-weight: bold;
-  color: #fff; /* texto branco */
-}
-
-.status-panel h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-
-.status-panel p {
-  margin: 4px 0;
-}
-
-/* Accordion horizontal */
-#accordion-filtros {
-  width: 100%;
-  background-color: #3a1c71;
-  color: #fff;
-  cursor: pointer;
-  padding: 10px 15px;
-  text-align: left;
-  border: none;
-  outline: none;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
+.chamado-detalhes h2 { color: #3a1c71; margin-bottom:10px; text-align:center; }
+.chamado-detalhes h3 { margin-bottom:5px; }
+.chamado-detalhes .acoes {
+  display:flex;
   justify-content: space-between;
+  gap:8px;
 }
+.chamado-detalhes .acoes button {
+  flex:1;
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  font-weight:bold;
+  color:#fff;
+  cursor:pointer;
+  transition: transform 0.2s;
+}
+.chamado-detalhes .acoes button:hover { transform: scale(1.05); }
+.btn-responder { background:#3a1c71; }
+.btn-fechar { background:#2ecc71; }
+.btn-cancelar { background:#e74c3c; }
 
-#accordion-filtros:after {
-  content: '\002B';
-  font-weight: bold;
-}
+/* Encaminhar container */
+#encaminhar-container { display:none; margin-top:10px; flex-direction:column; gap:8px; }
+#encaminhar-container select { padding:8px; border-radius:6px; border:1px solid #ccc; }
+#confirmar-encaminhar { background:#3a1c71; color:#fff; border:none; padding:8px; border-radius:6px; cursor:pointer; transition: transform 0.2s;}
+#confirmar-encaminhar:hover { transform: scale(1.05); }
 
-#accordion-filtros.active:after {
-  content: "\2212";
-}
-
-.filtros-panel {
-  display: none;
-  background-color: #f9f9fb;
-  padding: 10px 15px;
-  border-radius: 6px;
-  margin-bottom: 10px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.filtros-panel input, .filtros-panel select {
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
+/* Paginação */
+#paginacao { display:flex; justify-content:center; align-items:center; gap:15px; margin-top:auto; }
+#paginacao button { padding:8px 12px; border:none; border-radius:6px; background:#6a3ab0; color:#fff; cursor:pointer; transition: transform 0.2s; }
+#paginacao button:disabled { opacity:0.5; cursor:default; }
+#paginacao button:hover:not(:disabled){ transform:scale(1.05);}
 </style>
 </head>
 <body>
-<div class="dashboard" style="display:flex; height:100vh;">
-  <aside class="sidebar" style="width:230px; padding:20px; background:#3a1c71; color:#fff; display:flex; flex-direction:column;">
-    <div class="logo" style="font-size:26px; font-weight:bold; margin-bottom:40px; text-align:center; color:#ff7e29;">Unitá</div>
-    <nav class="menu">
-      <a href="novoChamado.html" class="menu-item" style="display:block; color:#fff; margin-bottom:15px; padding:10px 14px; border-radius:8px;">Novo Chamado</a>
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="logo">Unitá</div>
+    <nav>
+      <a href="novoChamado.html">Novo Chamado</a>
     </nav>
-    <!-- Painel de Status -->
     <div class="status-panel" id="status-panel">
       <h3>Status dos Chamados</h3>
       <p>Pendente: <span id="count-pendente">0</span></p>
@@ -137,8 +168,7 @@
     </div>
   </aside>
 
-  <main class="main-content" style="flex:1; display:flex; flex-direction:column; padding:20px;">
-    <!-- Accordion de filtros -->
+  <main class="main-content">
     <button id="accordion-filtros">Filtros</button>
     <div class="filtros-panel" id="filtros-panel">
       <input type="number" id="filter-id" placeholder="ID">
@@ -155,8 +185,8 @@
       </select>
     </div>
 
-    <section class="table-section" style="display:flex; gap:20px; flex:1;">
-      <div class="table-container" style="flex:1;">
+    <section class="table-section">
+      <div class="table-container">
         <table class="chamados-table" id="chamados-table">
           <thead>
             <tr>
@@ -172,9 +202,10 @@
             <tr><td colspan="6">Carregando chamados...</td></tr>
           </tbody>
         </table>
+        <div id="paginacao"></div>
       </div>
 
-      <aside class="chamado-detalhes" id="painel-detalhes" style="width:300px;">
+      <aside class="chamado-detalhes" id="painel-detalhes">
         <h2>Detalhes do Chamado</h2>
         <div class="info" id="detalhes-info">
           <p>Selecione um chamado para ver detalhes.</p>
@@ -189,7 +220,7 @@
           <button class="btn-cancelar" id="btn-cancelar">Cancelar</button>
         </div>
 
-        <div id="encaminhar-container" style="display:none; margin-top:10px;">
+        <div id="encaminhar-container">
           <label for="novo-setor">Escolha o novo setor:</label>
           <select id="novo-setor">
             <option value="">Selecione</option>
@@ -212,54 +243,38 @@ let chamadoSelecionado = null;
 let paginaAtual = 1;
 const pageSize = 20;
 let totalPaginas = 1;
-
 const STATUS_MAP = {0:"Pendente",1:"Em andamento",2:"Concluído",3:"Cancelado"};
 
-// Accordion horizontal
-const acc = document.getElementById("accordion-filtros");
-const panel = document.getElementById("filtros-panel");
-acc.addEventListener("click", ()=> {
+// Accordion
+document.getElementById("accordion-filtros").addEventListener("click",()=> {
+  const acc = document.getElementById("accordion-filtros");
+  const panel = document.getElementById("filtros-panel");
   acc.classList.toggle("active");
   panel.style.display = panel.style.display==="flex"?"none":"flex";
 });
 
 // Filtros
-const filterStatus = document.getElementById("filter-status");
-const filterSetor = document.getElementById("filter-setor");
-const filterId = document.getElementById("filter-id");
-const filterAssunto = document.getElementById("filter-assunto");
-const filterSolicitante = document.getElementById("filter-solicitante");
-const filterData = document.getElementById("filter-data");
+const filters = ["filter-status","filter-setor","filter-id","filter-assunto","filter-solicitante","filter-data"]
+  .map(id=>document.getElementById(id));
+filters.forEach(f=>f.addEventListener("input",()=>{ paginaAtual=1; carregarChamados(); }));
 
-[filterStatus, filterSetor, filterId, filterAssunto, filterSolicitante, filterData]
-  .forEach(f => f.addEventListener("input", ()=> { paginaAtual=1; carregarChamados(); }));
-
-// Função carregar relatório
-async function carregarRelatorio() {
-  try {
+// Funções
+async function carregarRelatorio(){
+  try{
     const token = localStorage.getItem("token");
-    const res = await fetch(API_RELATORIO, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
-    });
+    const res = await fetch(API_RELATORIO,{ headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json"}});
     if(!res.ok) throw new Error("Erro ao buscar relatório");
-
-    const relatorio = await res.json();
-
-    document.getElementById("count-pendente").textContent = relatorio.pendentes;
-    document.getElementById("count-em-andamento").textContent = relatorio.emAndamento;
-    document.getElementById("count-concluido").textContent = relatorio.concluido;
-    document.getElementById("count-cancelado").textContent = relatorio.cancelado;
-    document.getElementById("tempo-medio").textContent = relatorio.tempoMedioConclusaoHoras;
-
-  } catch(err) {
-    console.error(err);
-  }
+    const r = await res.json();
+    document.getElementById("count-pendente").textContent = r.pendentes;
+    document.getElementById("count-em-andamento").textContent = r.emAndamento;
+    document.getElementById("count-concluido").textContent = r.concluido;
+    document.getElementById("count-cancelado").textContent = r.cancelado;
+    document.getElementById("tempo-medio").textContent = r.tempoMedioConclusaoHoras;
+  }catch(err){ console.error(err);}
 }
 
-// Atualizar chamado
 async function atualizarChamado(id,statusEnum,setorResponsavel){
-  try {
+  try{
     const token = localStorage.getItem("token");
     const res = await fetch(`${API_LISTA}/${id}`,{
       method:"PUT",
@@ -267,10 +282,9 @@ async function atualizarChamado(id,statusEnum,setorResponsavel){
       body: JSON.stringify({id,statusEnum,setorResponsavel})
     });
     return res.ok;
-  } catch(err){ console.error(err); return false; }
+  }catch(err){ console.error(err); return false;}
 }
 
-// Limpar detalhes
 function limparDetalhes(){
   chamadoSelecionado=null;
   document.getElementById("detalhes-info").innerHTML=`<p>Selecione um chamado para ver detalhes.</p>`;
@@ -278,107 +292,77 @@ function limparDetalhes(){
   document.getElementById("encaminhar-container").style.display="none";
 }
 
-// Mostrar detalhes
 async function mostrarDetalhes(id){
-  try {
+  try{
     const token = localStorage.getItem("token");
     const res = await fetch(`${API_LISTA}/${id}`,{ headers:{"Authorization":`Bearer ${token}`}});
     if(!res.ok) throw new Error("Erro ao buscar detalhes");
-    let chamado = await res.json();
-    chamadoSelecionado = chamado;
-
-    if(chamado.status!==1){
-      const atualizado = await atualizarChamado(chamado.id,1,chamado.setorResponsavel);
-      if(atualizado) chamado.status=1;
+    let c = await res.json();
+    chamadoSelecionado = c;
+    if(c.status!==1){
+      const atualizado = await atualizarChamado(c.id,1,c.setorResponsavel);
+      if(atualizado) c.status=1;
     }
-
-    const statusTexto = STATUS_MAP[chamado.status] || chamado.status;
-
+    const statusTexto = STATUS_MAP[c.status] || c.status;
     document.getElementById("detalhes-info").innerHTML = `
-      <p><strong>Título:</strong> ${chamado.titulo}</p>
-      <p><strong>Descrição:</strong> ${chamado.descricao || "Sem descrição"}</p>
-      <p><strong>Setor:</strong> ${chamado.setorResponsavel}</p>
+      <p><strong>Título:</strong> ${c.titulo}</p>
+      <p><strong>Descrição:</strong> ${c.descricao||"Sem descrição"}</p>
+      <p><strong>Setor:</strong> ${c.setorResponsavel}</p>
       <p><strong>Status:</strong> ${statusTexto}</p>
     `;
-
     document.getElementById("detalhes-historico").innerHTML = `
-      <li>Chamado criado em ${new Date(chamado.dataCriacao || chamado.data).toLocaleString()}</li>
-      <li>Status atualizado para <strong>${STATUS_MAP[chamado.status]}</strong> ao abrir o chamado.</li>
+      <li>Chamado criado em ${new Date(c.dataCriacao||c.data).toLocaleString()}</li>
+      <li>Status atualizado para <strong>${STATUS_MAP[c.status]}</strong> ao abrir o chamado.</li>
     `;
-
     carregarChamados();
-
-  } catch(err){
-    console.error(err);
-    alert("Erro ao buscar detalhes do chamado");
-  }
+  }catch(err){ console.error(err); alert("Erro ao buscar detalhes do chamado"); }
 }
 
-// Carregar chamados com paginação e filtros
 async function carregarChamados(){
-  try {
+  try{
     const token = localStorage.getItem("token");
-
     const params = new URLSearchParams();
-    if(filterStatus.value) params.append("status", filterStatus.value);
-    if(filterSetor.value) params.append("setor", filterSetor.value);
-    if(filterId.value) params.append("search", filterId.value);
-    if(filterAssunto.value) params.append("search", filterAssunto.value);
-    if(filterSolicitante.value) params.append("solicitante", filterSolicitante.value);
-    if(filterData.value) params.append("de", filterData.value);
-    params.append("page", paginaAtual);
-    params.append("pageSize", pageSize);
+    if(document.getElementById("filter-status").value) params.append("status", document.getElementById("filter-status").value);
+    if(document.getElementById("filter-setor").value) params.append("setor", document.getElementById("filter-setor").value);
+    if(document.getElementById("filter-id").value) params.append("search", document.getElementById("filter-id").value);
+    if(document.getElementById("filter-assunto").value) params.append("search", document.getElementById("filter-assunto").value);
+    if(document.getElementById("filter-solicitante").value) params.append("solicitante", document.getElementById("filter-solicitante").value);
+    if(document.getElementById("filter-data").value) params.append("de", document.getElementById("filter-data").value);
+    params.append("page",paginaAtual);
+    params.append("pageSize",pageSize);
 
-    const res = await fetch(`${API_LISTA}?${params.toString()}`,{
-      headers:{"Authorization":`Bearer ${token}`}
-    });
+    const res = await fetch(`${API_LISTA}?${params.toString()}`,{ headers:{"Authorization":`Bearer ${token}`}});
     if(!res.ok) throw new Error("Erro ao buscar chamados");
-
     const data = await res.json();
     totalPaginas = data.totalPages;
 
     const tbody = document.getElementById("table-body");
     tbody.innerHTML="";
-
     if(data.items.length===0){
       tbody.innerHTML=`<tr><td colspan="6">Nenhum chamado encontrado</td></tr>`;
-    } else {
-      data.items.forEach(chamado=>{
-        const tr=document.createElement("tr");
-        const statusTexto = STATUS_MAP[chamado.status] || chamado.status;
-
+    }else{
+      data.items.forEach(c=>{
+        const tr = document.createElement("tr");
+        const statusTexto = STATUS_MAP[c.status]||c.status;
         tr.innerHTML=`
-          <td>${chamado.id}</td>
-          <td>${chamado.setorResponsavel}</td>
-          <td>${chamado.titulo}</td>
-          <td>${chamado.solicitante||"-"}</td>
-          <td>${new Date(chamado.dataCriacao||chamado.data).toLocaleDateString()}</td>
+          <td>${c.id}</td>
+          <td>${c.setorResponsavel}</td>
+          <td>${c.titulo}</td>
+          <td>${c.solicitante||"-"}</td>
+          <td>${new Date(c.dataCriacao||c.data).toLocaleDateString()}</td>
           <td class="status ${statusTexto.toLowerCase().replace(' ','-')}">${statusTexto}</td>
         `;
-        tr.addEventListener("click",()=>mostrarDetalhes(chamado.id));
+        tr.addEventListener("click",()=>mostrarDetalhes(c.id));
         tbody.appendChild(tr);
       });
     }
-
     carregarRelatorio();
     atualizarControlesPaginacao();
-  } catch(err){
-    console.error(err);
-    document.getElementById("table-body").innerHTML=`<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;
-  }
+  }catch(err){ console.error(err); document.getElementById("table-body").innerHTML=`<tr><td colspan="6">Erro ao carregar chamados</td></tr>`;}
 }
 
-// Controles de paginação
 function atualizarControlesPaginacao(){
   let pagDiv = document.getElementById("paginacao");
-  if(!pagDiv){
-    pagDiv = document.createElement("div");
-    pagDiv.id="paginacao";
-    pagDiv.style.marginTop="10px";
-    pagDiv.style.display="flex";
-    pagDiv.style.gap="10px";
-    document.querySelector(".table-container").appendChild(pagDiv);
-  }
   pagDiv.innerHTML = `
     <button ${paginaAtual===1?'disabled':''} onclick="paginaAtual--; carregarChamados();">Anterior</button>
     <span>Página ${paginaAtual} de ${totalPaginas}</span>
@@ -386,36 +370,37 @@ function atualizarControlesPaginacao(){
   `;
 }
 
-// Ações de botões
+// Botões de ação
 document.getElementById("btn-encaminhar").addEventListener("click",()=>{ 
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
-  document.getElementById("encaminhar-container").style.display="block"; 
+  document.getElementById("encaminhar-container").style.display="flex"; 
 });
-
 document.getElementById("confirmar-encaminhar").addEventListener("click",async()=>{
   const novoSetor = document.getElementById("novo-setor").value;
   if(!novoSetor){ alert("Selecione um setor válido."); return; }
   const sucesso = await atualizarChamado(chamadoSelecionado.id,0,novoSetor);
-  if(sucesso){ alert("Chamado encaminhado e status definido como Pendente!"); limparDetalhes(); carregarChamados();}
+  if(sucesso){ alert("Chamado encaminhado!"); limparDetalhes(); carregarChamados();}
   else alert("Erro ao encaminhar chamado.");
 });
-
 document.getElementById("btn-fechar").addEventListener("click",async()=>{
-  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
-  const sucesso = await atualizarChamado(chamadoSelecionado.id,2,chamadoSelecionado.setorResponsavel);
-  if(sucesso){ alert("Chamado encerrado com status Concluído!"); limparDetalhes(); carregarChamados(); }
-  else alert("Erro ao encerrar chamado.");
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
+  if(confirm("Deseja realmente encerrar este chamado?")){
+    const sucesso = await atualizarChamado(chamadoSelecionado.id,2,chamadoSelecionado.setorResponsavel);
+    if(sucesso){ alert("Chamado encerrado!"); limparDetalhes(); carregarChamados();}
+    else alert("Erro ao encerrar chamado.");
+  }
 });
-
 document.getElementById("btn-cancelar").addEventListener("click",async()=>{
-  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
-  const sucesso = await atualizarChamado(chamadoSelecionado.id,3,chamadoSelecionado.setorResponsavel);
-  if(sucesso){ alert("Chamado cancelado!"); limparDetalhes(); carregarChamados(); }
-  else alert("Erro ao cancelar chamado.");
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; } 
+  if(confirm("Deseja realmente cancelar este chamado?")){
+    const sucesso = await atualizarChamado(chamadoSelecionado.id,3,chamadoSelecionado.setorResponsavel);
+    if(sucesso){ alert("Chamado cancelado!"); limparDetalhes(); carregarChamados();}
+    else alert("Erro ao cancelar chamado.");
+  }
 });
 
-// Inicializa
-carregarChamados();
+// Inicialização
+window.addEventListener("load",()=>{ carregarChamados(); carregarRelatorio(); });
 </script>
 </body>
 </html>
