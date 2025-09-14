@@ -38,7 +38,6 @@ O sistema auxilia colaboradores em questões de **TI, Facilities, Financeiro** e
 - Possibilidade de auxiliar na abertura de novos chamados ou fornecer suporte rápido sem intervenção humana.  
 
 ---
----
 
 ## Estrutura do Projeto
 
