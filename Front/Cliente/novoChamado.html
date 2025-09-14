@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Chamado / Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="dashboard">
+
+  <aside class="sidebar">
+    <div class="logo">Unitá</div>
+    <nav class="menu">
+      <a href="listagemChamados.html" class="menu-item">Listagem de Chamados</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <section class="form-section">
+      <h1>Abrir Novo Chamado / Chat</h1>
+      <form class="form-chamado">
+        <label for="setor">Setor</label>
+        <select id="setor" required>
+          <option value="">Selecione</option>
+          <option value="TI">TI</option>
+          <option value="RH">RH</option>
+          <option value="Financeiro">Financeiro</option>
+          <option value="Comercial">Comercial</option>
+        </select>
+
+        <label for="assunto">Assunto</label>
+        <input type="text" id="assunto" required>
+
+        <label for="descricao">Descrição</label>
+        <textarea id="descricao" rows="6" required></textarea>
+
+        <label for="solicitante">Solicitante</label>
+        <input type="text" id="solicitante" required>
+
+        <div class="acoes-form">
+          <button type="submit" class="btn-salvar">Enviar</button>
+          <button type="button" class="btn-cancelar" onclick="window.location.href='listagemChamados.html'">Ver Chamados</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+</div>
+
+<script>
+document.querySelector(".form-chamado").addEventListener("submit", async (e)=>{
+  e.preventDefault();
+
+  const data = {
+    Titulo: document.getElementById("assunto").value,
+    Descricao: document.getElementById("descricao").value,
+    SetorResponsavel: document.getElementById("setor").value,
+    Solicitante: document.getElementById("solicitante").value
+  };
+
+  try {
+    const res = await fetch("http://172.20.18.68:5206/api/Knowledge/chat", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(data)
+    });
+    if(res.ok){
+      alert("Chamado criado com sucesso!");
+      window.location.href = "listagemChamados.html";
+    } else {
+      const errText = await res.text();
+      alert("Erro: " + errText);
+    }
+  } catch(err){
+    console.error(err);
+    alert("Erro de conexão");
+  }
+});
+</script>
+</body>
+</html>
