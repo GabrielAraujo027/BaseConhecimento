@@ -1,30 +1,47 @@
-﻿using BaseConhecimento.Services.Interfaces;
+﻿// Services/LlamaService.cs
+using System.Net.Http;
+using System.Net.Http.Json;
+using System.Text.Json;
+using BaseConhecimento.Services.Interfaces;
 
 namespace BaseConhecimento.Services
 {
-    public class LlamaService : ILlamaService
+    public sealed class LlamaService : ILlamaService
     {
         private readonly HttpClient _http;
 
-        public LlamaService(HttpClient http)
+        private sealed record GenerateReq(string model, string prompt, bool stream);
+        private sealed record GenerateResp(string? response);
+
+        public LlamaService(IHttpClientFactory factory)
         {
-            _http = http;
+            // Usa o client nomeado registrado no Program.cs
+            _http = factory.CreateClient("ollama");
         }
 
         public async Task<string> GenerateAsync(string prompt, CancellationToken ct = default)
         {
-            var body = new
+            var req = new GenerateReq(model: "llama3", prompt: prompt, stream: false);
+
+            using var res = await _http.PostAsJsonAsync("api/generate", req, cancellationToken: ct);
+            res.EnsureSuccessStatusCode();
+
+            await using var stream = await res.Content.ReadAsStreamAsync(ct);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+            if (doc.RootElement.TryGetProperty("response", out var r) && r.ValueKind == JsonValueKind.String)
+                return r.GetString() ?? string.Empty;
+
+            // fallback defensivo para variações de payload
+            try
             {
-                model = "llama3",
-                prompt = prompt,
-                stream = false
-            };
-
-            var resp = await _http.PostAsJsonAsync("http://localhost:11434/api/generate", body, ct);
-            resp.EnsureSuccessStatusCode();
-
-            var json = await resp.Content.ReadFromJsonAsync<Dictionary<string, object>>(cancellationToken: ct);
-            return json?["response"]?.ToString() ?? "(sem resposta gerada)";
+                var parsed = await res.Content.ReadFromJsonAsync<GenerateResp>(cancellationToken: ct);
+                return parsed?.response ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
     }
 }

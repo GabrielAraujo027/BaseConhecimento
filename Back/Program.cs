@@ -12,21 +12,15 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// -------------------------
 // MVC / APIs
-// -------------------------
 builder.Services.AddControllersWithViews();
 builder.Services.AddControllers();
 
-// -------------------------
 // EF Core
-// -------------------------
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
-// -------------------------
 // Identity + Roles
-// -------------------------
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(opt =>
     {
@@ -38,9 +32,7 @@ builder.Services
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
 
-// -------------------------
-// JWT Auth
-// -------------------------
+// JWT
 var jwt = builder.Configuration.GetSection("Jwt");
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? "CHAVE-DEV-ALTERE-NO-APPSETTINGS"));
 
@@ -56,8 +48,8 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwt["Issuer"] ?? "BaseConhecimento",
-        ValidAudience = jwt["Audience"] ?? "BaseConhecimento",
+        ValidIssuer = jwt["Issuer"] ?? "BaseConhecimento.Dev",
+        ValidAudience = jwt["Audience"] ?? "BaseConhecimento.Dev",
         IssuerSigningKey = signingKey,
         ClockSkew = TimeSpan.FromMinutes(1)
     };
@@ -65,28 +57,18 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// -------------------------
-// CORS (permite qualquer origem/método/header)
-// -------------------------
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("Frontend", policy =>
-        policy
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true)   // aceita QUALQUER origem
-                                             // .AllowCredentials()            // NÃO usar com Bearer simples
-    );
-});
+// CORS (liste seus fronts http)
+builder.Services.AddCors(o => o.AddPolicy("Frontend", p =>
+    p.WithOrigins("http://127.0.0.1:5500", "http://localhost:5500")
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+));
 
-// -------------------------
-// Swagger (com JWT Bearer)
-// -------------------------
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
     opt.SwaggerDoc("v1", new OpenApiInfo { Title = "BaseConhecimento API", Version = "v1" });
-
     var securityScheme = new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -98,95 +80,36 @@ builder.Services.AddSwaggerGen(opt =>
         Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
     };
     opt.AddSecurityDefinition("Bearer", securityScheme);
-    opt.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        { securityScheme, Array.Empty<string>() }
-    });
+    opt.AddSecurityRequirement(new OpenApiSecurityRequirement { { securityScheme, Array.Empty<string>() } });
 });
 
-// -------------------------
-// HttpClient para o Ollama (localhost:11434)
-// -------------------------
-builder.Services.AddHttpClient("ollama", client =>
+// HttpClient nomeado para o Ollama
+builder.Services.AddHttpClient("ollama", c =>
 {
-    client.BaseAddress = new Uri("http://localhost:11434/");
+    c.BaseAddress = new Uri("http://localhost:11434/");
 });
 
-// -------------------------
-// Serviços de aplicação
-// -------------------------
-builder.Services.AddScoped<ITokenService, TokenService>();                  // gera JWT
-builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();    // embeddings
-builder.Services.AddHttpClient<ILlamaService, LlamaService>();              // Llama (se usar)
+// Serviços app
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();
+builder.Services.AddTransient<ILlamaService, LlamaService>();
 
 var app = builder.Build();
 
-// -------------------------
-// Migrations + Seed (roles + usuário opcional)
-// -------------------------
+// Auto-migrate (opcional)
 using (var scope = app.Services.CreateScope())
 {
-    var sp = scope.ServiceProvider;
-
-    // DB migrate
-    var db = sp.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-
-    // Cria roles padrão
-    var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Solicitante", "Atendente" })
-    {
-        if (!await roleMgr.RoleExistsAsync(role))
-            await roleMgr.CreateAsync(new IdentityRole(role));
-    }
-
-    // Seed opcional via appsettings:
-    // "Auth": { "SeedUser": { "Email": "...", "Password": "...", "Role": "Atendente" } }
-    var cfg = app.Configuration;
-    var seedEmail = cfg["Auth:SeedUser:Email"];
-    var seedPass = cfg["Auth:SeedUser:Password"];
-    var seedRole = cfg["Auth:SeedUser:Role"] ?? "Atendente";
-
-    if (!string.IsNullOrWhiteSpace(seedEmail))
-    {
-        var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
-        var user = await userMgr.FindByEmailAsync(seedEmail);
-
-        if (user is null && !string.IsNullOrWhiteSpace(seedPass))
-        {
-            user = new ApplicationUser { UserName = seedEmail, Email = seedEmail };
-            var res = await userMgr.CreateAsync(user, seedPass);
-            if (res.Succeeded)
-            {
-                if (!await roleMgr.RoleExistsAsync(seedRole))
-                    await roleMgr.CreateAsync(new IdentityRole(seedRole));
-                await userMgr.AddToRoleAsync(user, seedRole);
-            }
-        }
-        else if (user is not null)
-        {
-            if (!await userMgr.IsInRoleAsync(user, seedRole))
-                await userMgr.AddToRoleAsync(user, seedRole);
-        }
-    }
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
 }
 
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Home/Error");
-    app.UseHsts();
-    app.UseHttpsRedirection();
-}
-
+// PIPELINE (sem HTTPS/HSTS)
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseStaticFiles();
-
 app.UseRouting();
-
-app.UseCors("Frontend");         // CORS entre Routing e Auth
+app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();

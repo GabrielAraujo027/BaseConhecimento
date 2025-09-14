@@ -11,5 +11,6 @@ namespace BaseConhecimento.DTOs.Chamados.Requests
 
         [Required, StringLength(500)]
         public string Descricao { get; set; }
+        public string SetorResponsavel { get; set; }
     }
 }

@@ -1,6 +1,8 @@
-﻿using BaseConhecimento.Data;
+﻿// Controllers/KnowledgeController.cs
+using BaseConhecimento.Data;
 using BaseConhecimento.DTOs.Chamados.Requests;
 using BaseConhecimento.DTOs.Chat;
+using BaseConhecimento.DTOs.Chat.Requests;
 using BaseConhecimento.DTOs.Knowledge;
 using BaseConhecimento.DTOs.Knowledge.Requests;
 using BaseConhecimento.Models.Chamados;
@@ -10,6 +12,9 @@ using BaseConhecimento.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace BaseConhecimento.Controllers
 {
@@ -19,21 +24,30 @@ namespace BaseConhecimento.Controllers
     {
         private readonly AppDbContext _ctx;
         private readonly IEmbeddingService _emb;
+        private readonly ILlamaService _llama;
 
-        public KnowledgeController(AppDbContext ctx, IEmbeddingService emb)
+        public KnowledgeController(AppDbContext ctx, IEmbeddingService emb, ILlamaService llama)
         {
             _ctx = ctx;
             _emb = emb;
+            _llama = llama;
         }
 
         private sealed class ScoredItem
         {
             public required KnowledgeItem Item { get; init; }
             public float Score { get; init; }
+            public float Cos { get; init; }
+            public float Lex { get; init; }
         }
+
+        private string? GetCurrentUserEmail()
+            => User?.FindFirstValue(ClaimTypes.Email)
+               ?? User?.Claims.FirstOrDefault(c => c.Type.Equals("email", StringComparison.OrdinalIgnoreCase))?.Value;
 
         // ---------------- Ingest (1) ----------------
         [HttpPost("ingest")]
+        [Authorize(Roles = "Atendente")]
         public async Task<IActionResult> Ingest([FromBody] IngestKnowledgeDTO dto, CancellationToken ct)
         {
             if (!Validar(dto, out var erro)) return BadRequest(erro);
@@ -46,7 +60,6 @@ namespace BaseConhecimento.Controllers
                 PerguntasFrequentes = dto.PerguntasFrequentes ?? string.Empty
             };
 
-            // Embedding do conteúdo + FAQs para ranking melhor
             var textoCompleto = $"{dto.Conteudo} {dto.PerguntasFrequentes}";
             var emb = await _emb.CreateEmbeddingAsync(textoCompleto, ct);
             item.SetEmbedding(emb);
@@ -59,6 +72,7 @@ namespace BaseConhecimento.Controllers
 
         // -------------- Ingest (batch) --------------
         [HttpPost("ingest/batch")]
+        [Authorize(Roles = "Atendente")]
         public async Task<IActionResult> IngestBatch([FromBody] List<IngestKnowledgeDTO> itens, CancellationToken ct)
         {
             var result = new IngestBatchResultDTO();
@@ -95,7 +109,7 @@ namespace BaseConhecimento.Controllers
             return Ok(result);
         }
 
-        // -------------- Chat: responde OU abre chamado se usuário pedir --------------
+        // -------------- Chat: Top-K híbrido + margem; handoff decidido por LLM --------------
         [AllowAnonymous]
         [HttpPost("chat")]
         public async Task<ActionResult<ChatKnowledgeResponseDTO>> Chat(
@@ -105,76 +119,176 @@ namespace BaseConhecimento.Controllers
             if (req == null || string.IsNullOrWhiteSpace(req.Message))
                 return BadRequest(new { error = "Message é obrigatório" });
 
-            // Verifica se o usuário explicitamente quer atendimento humano
-            var wantsHandOff = WantsHumanHandOff(req.Message)
-                               || (req.History?.Any(h => h.Role == "user" && WantsHumanHandOff(h.Content)) ?? false);
+            // 1) Expandir consulta com sinônimos (melhora recall sem custo grande)
+            var expanded = ExpandQuery(req.Message);
 
-            // Gera embedding da pergunta
-            var qEmb = await _emb.CreateEmbeddingAsync(req.Message, ct);
+            // 2) Embedding da pergunta (uma vez)
+            var qEmb = await _emb.CreateEmbeddingAsync(expanded, ct);
 
-            // Busca artigos e rankeia (top-1)
+            // 3) Recuperação: Top-K por embedding
             var items = await _ctx.KnowledgeBase.AsNoTracking().ToListAsync(ct);
-            KnowledgeItem? artigo = null;
-            float score = 0f;
-
-            if (items.Count > 0)
+            if (items.Count == 0)
             {
-                var ranked = items
-                    .Select(i =>
-                    {
-                        var embItem = i.GetEmbedding();
-                        var s = CosineSimilarity(qEmb, embItem);
-                        return new ScoredItem { Item = i, Score = s };
-                    })
-                    .OrderByDescending(x => x.Score)
-                    .Take(1)
-                    .ToList();
-
-                if (ranked.Any())
+                // Base vazia → classificador decide se abre chamado (com contexto mínimo)
+                var llamaDecWhenEmpty = await TryLlamaHandOffAsync(req, null, ct);
+                if (llamaDecWhenEmpty.HandOff)
                 {
-                    artigo = ranked[0].Item;
-                    score = ranked[0].Score;
+                    var setor = NormalizeSector(llamaDecWhenEmpty.Sector) ?? "TI";
+                    var title = string.IsNullOrWhiteSpace(llamaDecWhenEmpty.Title) ? "Solicitação de suporte" : llamaDecWhenEmpty.Title!.Trim();
+                    var ticketId = await CriarChamadoAutomatico(new CriarChamadoDTO
+                    {
+                        Titulo = title,
+                        Descricao = $"Pergunta do usuário (base vazia): {req.Message}"
+                    }, setor);
+                    var reply = $"Chamado aberto para {title} - #{ticketId} (Suporte - {setor})";
+                    return Ok(new ChatKnowledgeResponseDTO { Reply = reply, TicketId = ticketId });
                 }
+
+                return Ok(new ChatKnowledgeResponseDTO
+                {
+                    Reply = "Não encontrei conteúdo na base. Posso abrir um chamado para o setor responsável, se preferir."
+                });
             }
 
-            // limiar para "resposta confiante"
-            var highThreshold = 0.70f;
+            const int TOP_K = 6;
+            var prelim = items
+                .Select(i => new
+                {
+                    Item = i,
+                    Cos = CosineSimilarity(qEmb, i.GetEmbedding())
+                })
+                .OrderByDescending(x => x.Cos)
+                .Take(TOP_K)
+                .ToList();
 
-            // Se o usuário pediu mão para humano, abrimos chamado com base no melhor artigo (se houver)
-            if (wantsHandOff)
+            // 4) Fusão com overlap léxico (conteúdo + FAQs)
+            var fused = prelim.Select(x =>
             {
-                var (titulo, descricao, setor) = BuildTicketFromContext(req.Message, artigo);
+                var text = $"{x.Item.Conteudo} {x.Item.PerguntasFrequentes}";
+                var lex = LexicalOverlap(expanded, text);
+                var score = 0.7f * x.Cos + 0.3f * lex;
+                return new ScoredItem { Item = x.Item, Cos = x.Cos, Lex = lex, Score = score };
+            })
+            .OrderByDescending(x => x.Score)
+            .ToList();
+
+            // 5) Confiança adaptativa (alto OU margem sobre o 2º)
+            float top1 = fused[0].Score;
+            float top2 = fused.Count > 1 ? fused[1].Score : 0f;
+            bool confident = (top1 >= 0.76f) || (top1 >= 0.64f && (top1 - top2) >= 0.10f);
+
+            var artigo = fused[0].Item;
+
+            // 6) Se NÃO confiante → chamar classificador LLM para decidir handoff/sector/title
+            LlamaDecision llamaDecision = confident
+                ? new LlamaDecision(false, null, null)
+                : await TryLlamaHandOffAsync(req, artigo, ct);
+
+            if (!confident && llamaDecision.HandOff)
+            {
+                var setor = NormalizeSector(llamaDecision.Sector) ?? SectorFromCategory(artigo?.Categoria) ?? "TI";
+                var title = !string.IsNullOrWhiteSpace(llamaDecision.Title)
+                    ? llamaDecision.Title!.Trim()
+                    : InferTicketTitle(req.Message, artigo);
+
                 var ticketId = await CriarChamadoAutomatico(new CriarChamadoDTO
                 {
-                    Titulo = titulo,
-                    Descricao = descricao
-                    // Setor e status são pré-definidos dentro do método
-                });
+                    Titulo = title,
+                    Descricao = BuildTicketDescription(req, artigo)
+                }, setor);
 
-                var setorLabel = string.IsNullOrEmpty(setor) ? "Suporte - TI" : $"Suporte - {setor}";
-                var reply = $"Chamado aberto para {titulo} - #{ticketId} ({setorLabel})";
+                var reply = $"Chamado aberto para {title} - #{ticketId} (Suporte - {setor})";
                 return Ok(new ChatKnowledgeResponseDTO { Reply = reply, TicketId = ticketId });
             }
 
-            // Caso normal: se achou artigo com confiança, responde dinamicamente
-            if (artigo is not null && score >= highThreshold)
+            // 7) Se confiante → responde (sem Llama na geração, rápido)
+            if (confident && artigo is not null)
             {
                 var opener = Pick(Openers, req.Message);
                 var closer = Pick(Closers, req.Message);
 
                 var resposta =
-                $@"{opener}
-                {artigo.Categoria} - {artigo.Subcategoria}
-                {artigo.Conteudo}
-                {closer}";
+$@"{opener}
 
+{artigo.Categoria} - {artigo.Subcategoria}
+
+{artigo.Conteudo}
+
+{closer}";
                 return Ok(new ChatKnowledgeResponseDTO { Reply = resposta });
             }
 
-            // Se não achou nada confiante, abre chamado automaticamente (fallback)
-            return await AbrirChamadoEDevolver(req.Message);
+            // 8) Baixa confiança e classificador não pediu mão do humano → saída neutra
+            return Ok(new ChatKnowledgeResponseDTO
+            {
+                Reply = "Não encontrei uma correspondência clara na base. Posso abrir um chamado para o setor responsável, se preferir."
+            });
         }
 
+        // ---------------- Classificador de handoff (LLM) ----------------
+        private sealed record LlamaDecision(bool HandOff, string? Sector, string? Title);
+
+        private async Task<LlamaDecision> TryLlamaHandOffAsync(
+            ChatKnowledgeRequestDTO req,
+            KnowledgeItem? artigo,
+            CancellationToken ct)
+        {
+            try
+            {
+                var hist = (req.History ?? new List<ChatMessageDTO>())
+                    .Select(h => new { role = h.Role ?? "user", content = h.Content ?? "" })
+                    .Where(h => !string.IsNullOrWhiteSpace(h.content))
+                    .TakeLast(8)
+                    .ToList();
+
+                var artigoHint = artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}";
+
+                var prompt =
+$@"
+Você é um classificador. Dado o diálogo, responda em JSON estrito:
+{{
+  ""handoff"": true|false,        // true se o usuário quer que um humano execute/assuma
+  ""sector"": ""TI|Facilities|RH|Financeiro|Compras|Segurança da Informação|Logística|Produção|Processos|Data & Analytics|Qualidade|Jurídico|Marketing|Comercial|Infra & DevOps|Atendimento Humano|"" ou """",
+  ""title"": ""título curto do chamado""
+}}
+
+Histórico:
+{string.Join("\n", hist.Select(h => $"{h.role}: {h.content}"))}
+
+Mensagem atual:
+{req.Message}
+
+Artigo relacionado: {artigoHint}
+
+Saída apenas JSON válido.
+";
+
+                var raw = await _llama.GenerateAsync(prompt, ct);
+                var json = ExtractJson(raw);
+                if (string.IsNullOrWhiteSpace(json)) return new LlamaDecision(false, null, null);
+
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                var handoff = root.TryGetProperty("handoff", out var hEl) && hEl.ValueKind == JsonValueKind.True;
+                string? sector = root.TryGetProperty("sector", out var sEl) && sEl.ValueKind == JsonValueKind.String ? sEl.GetString() : null;
+                string? title = root.TryGetProperty("title", out var tEl) && tEl.ValueKind == JsonValueKind.String ? tEl.GetString() : null;
+
+                return new LlamaDecision(handoff, sector, title);
+            }
+            catch
+            {
+                return new LlamaDecision(false, null, null);
+            }
+        }
+
+        private static string? ExtractJson(string raw)
+        {
+            var m = Regex.Match(raw, @"\{[\s\S]*\}");
+            return m.Success ? m.Value : null;
+        }
+
+        // ---------------- Helpers ----------------
         private static bool Validar(IngestKnowledgeDTO dto, out string erro)
         {
             if (dto is null) { erro = "Payload inválido."; return false; }
@@ -184,86 +298,65 @@ namespace BaseConhecimento.Controllers
             erro = ""; return true;
         }
 
-        private static readonly string[] Openers = new[]
+        // Tokenização & Overlap léxico
+        private static IEnumerable<string> Tok(string s) =>
+            Regex.Matches(s ?? "", @"[A-Za-zÀ-ÿ0-9]+")
+                 .Select(m => m.Value.ToLowerInvariant())
+                 .Where(w => w.Length > 2);
+
+        private static float LexicalOverlap(string query, string text)
         {
+            var qs = Tok(query).ToHashSet();
+            var ts = Tok(text).ToHashSet();
+            if (qs.Count == 0 || ts.Count == 0) return 0f;
+            var inter = qs.Intersect(ts).Count();
+            return (float)inter / Math.Max(1, qs.Count);
+        }
+
+        // Sinônimos simples (expande a consulta em PT-BR)
+        private static readonly (string key, string[] syn)[] Synonyms = new[]
+        {
+            ("vale refeicao", new[] {"vale-refeicao","vr","ticket refeição","ticket alimentacao","auxilio alimentacao"}),
+            ("cartucho", new[] {"tinta","toner","impressora sem tinta","substituir cartucho"}),
+            ("atestado", new[] {"comprovante medico","licenca medica","laudo","afastamento"}),
+            ("senha", new[] {"reset de senha","redefinir senha","trocar senha","recuperar acesso"}),
+            ("reembolso", new[] {"ressarcimento","adiantamento de despesas","prestacao de contas"}),
+            ("internet", new[] {"rede","wifi","conexao","link"}),
+            ("ferias", new[] {"periodo de descanso","abono ferias","agendar ferias"}),
+            ("nota fiscal", new[] {"nf-e","nfe","fatura","invoice"}),
+        };
+
+        private static string ExpandQuery(string q)
+        {
+            var t = " " + q.ToLowerInvariant() + " ";
+            var extra = new List<string>();
+            foreach (var (key, syns) in Synonyms)
+            {
+                if (t.Contains(" " + key + " "))
+                    extra.AddRange(syns);
+            }
+            return extra.Count == 0 ? q : q + " " + string.Join(' ', extra);
+        }
+
+        // Respostas rápidas (sem Llama)
+        private static readonly string[] Openers = {
             "Encontrei algo que pode te ajudar:",
             "Beleza — aqui vai o passo a passo:",
             "Claro! Olha como resolver:",
             "Seguem as instruções objetivas:",
             "Achei um guia que resolve isso:"
         };
-
-        private static readonly string[] Closers = new[]
-        {
+        private static readonly string[] Closers = {
             "Se preferir, abro um chamado com o time responsável.",
             "Caso queira, posso acionar o suporte pra fazer por você.",
             "Quer que eu crie um chamado para o setor responsável?",
             "Posso abrir um ticket para alguém executar pra você.",
             "Se não conseguir, abro um chamado agora mesmo."
         };
-
         private static string Pick(string[] arr, string seed)
         {
             var h = Math.Abs(seed.GetHashCode());
             return arr[h % arr.Length];
-        }
-
-        private static bool WantsHumanHandOff(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return false;
-            var t = text.ToLowerInvariant();
-
-            // Palavras/expressões que indicam escalar para humano
-            string[] patterns =
-            {
-                "abra um chamado", "abrir um chamado", "abre um chamado",
-                "abre um ticket", "abrir um ticket", "abra um ticket",
-                "preciso que alguém faça", "preciso que o pessoal", "pessoal do ti",
-                "façam para mim", "façam pra mim", "alguém vem aqui", "alguém venha",
-                "não consigo fazer", "façam isso", "quero suporte", "mandar um técnico",
-                "abrir chamado", "abrir ticket"
-            };
-
-            return patterns.Any(p => t.Contains(p));
-        }
-
-        private static string InferSetor(KnowledgeItem? artigo)
-        {
-            if (artigo is null) return "TI";
-            var cat = (artigo.Categoria ?? "").Trim().ToLowerInvariant();
-
-            if (cat.Contains("ti")) return "TI";
-            if (cat.Contains("facility")) return "Facilities";
-            if (cat.Contains("facilidades")) return "Facilities";
-            if (cat.Contains("rh")) return "RH";
-            if (cat.Contains("finance")) return "Financeiro";
-            if (cat.Contains("compras")) return "Compras";
-            if (cat.Contains("juríd")) return "Jurídico";
-            if (cat.Contains("segurança")) return "Segurança";
-            return "TI";
-        }
-
-        private static (string titulo, string descricao, string setor) BuildTicketFromContext(string userMsg, KnowledgeItem? artigo)
-        {
-            // Título deduzido pelo tema
-            string titulo;
-            var msg = userMsg.ToLowerInvariant();
-
-            if (msg.Contains("cartucho") || msg.Contains("impressora"))
-                titulo = "Troca de cartucho de impressora";
-            else if (artigo != null)
-                titulo = $"Solicitação: {artigo.Subcategoria}";
-            else
-                titulo = "Solicitação de suporte";
-
-            var setor = InferSetor(artigo);
-
-            var descricao =
-            $@"Solicitação aberta automaticamente pelo assistente.
-            Mensagem do usuário: {userMsg}
-            Artigo relacionado: {(artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}")}";
-
-            return (titulo, descricao, setor);
         }
 
         private static float CosineSimilarity(float[] v1, float[] v2)
@@ -274,6 +367,80 @@ namespace BaseConhecimento.Controllers
             return dot / ((float)Math.Sqrt(a) * (float)Math.Sqrt(b) + 1e-6f);
         }
 
+        private static string BuildTicketDescription(ChatKnowledgeRequestDTO req, KnowledgeItem? artigo)
+        {
+            var hist = (req.History ?? new List<ChatMessageDTO>())
+                .Select(h => $"- {h.Role}: {h.Content}")
+                .ToList();
+
+            return
+$@"Solicitação aberta automaticamente pelo assistente.
+
+Histórico recente:
+{string.Join("\n", hist.TakeLast(8))}
+
+Mensagem do usuário: {req.Message}
+Artigo relacionado: {(artigo is null ? "N/A" : $"{artigo.Categoria} / {artigo.Subcategoria}")}";
+        }
+
+        private static string InferTicketTitle(string userMsg, KnowledgeItem? artigo)
+        {
+            var t = userMsg.ToLowerInvariant();
+            if (t.Contains("cartucho") || t.Contains("impressora"))
+                return "Troca de cartucho de impressora";
+            if (artigo != null && !string.IsNullOrWhiteSpace(artigo.Subcategoria))
+                return $"Solicitação: {artigo.Subcategoria}";
+            return "Solicitação de suporte";
+        }
+
+        private static string? NormalizeSector(string? sector)
+        {
+            if (string.IsNullOrWhiteSpace(sector)) return null;
+            var s = sector.Trim().ToLowerInvariant();
+
+            if (s.Contains("ti")) return "TI";
+            if (s.StartsWith("seguran")) return "Segurança da Informação";
+            if (s.StartsWith("finan")) return "Financeiro";
+            if (s.StartsWith("rec") || s.StartsWith("rh")) return "RH";
+            if (s.StartsWith("compr")) return "Compras";
+            if (s.StartsWith("jur")) return "Jurídico";
+            if (s.StartsWith("facil") || s.Contains("predial")) return "Facilities";
+            if (s.StartsWith("log")) return "Logística";
+            if (s.StartsWith("prod")) return "Produção";
+            if (s.StartsWith("proc") || s.Contains("pmo")) return "Processos";
+            if (s.Contains("data") || s.Contains("analyt")) return "Data & Analytics";
+            if (s.StartsWith("qual")) return "Qualidade";
+            if (s.StartsWith("mark")) return "Marketing";
+            if (s.StartsWith("comer")) return "Comercial";
+            if (s.Contains("infra")) return "Infra & DevOps";
+            if (s.Contains("atendimento")) return "Atendimento Humano";
+            return char.ToUpper(s[0]) + s[1..];
+        }
+
+        private static string? SectorFromCategory(string? categoria)
+        {
+            if (string.IsNullOrWhiteSpace(categoria)) return null;
+            var c = categoria.Trim().ToLowerInvariant();
+
+            if (c.Contains("ti")) return "TI";
+            if (c.Contains("facil")) return "Facilities";
+            if (c.Contains("recursos humanos") || c == "rh") return "RH";
+            if (c.Contains("finance")) return "Financeiro";
+            if (c.Contains("compras")) return "Compras";
+            if (c.Contains("segurança")) return "Segurança da Informação";
+            if (c.Contains("logíst")) return "Logística";
+            if (c.Contains("produ")) return "Produção";
+            if (c.Contains("process")) return "Processos";
+            if (c.Contains("data") || c.Contains("analytics")) return "Data & Analytics";
+            if (c.Contains("qualid")) return "Qualidade";
+            if (c.Contains("juríd")) return "Jurídico";
+            if (c.Contains("marketing")) return "Marketing";
+            if (c.Contains("comercial")) return "Comercial";
+            if (c.Contains("infra")) return "Infra & DevOps";
+            if (c.Contains("atendimento")) return "Atendimento Humano";
+            return null;
+        }
+
         private async Task<ActionResult<ChatKnowledgeResponseDTO>> AbrirChamadoEDevolver(string pergunta)
         {
             var dtoChamado = new CriarChamadoDTO
@@ -282,7 +449,7 @@ namespace BaseConhecimento.Controllers
                 Descricao = $"Pergunta do usuário: {pergunta}"
             };
 
-            var id = await CriarChamadoAutomatico(dtoChamado);
+            var id = await CriarChamadoAutomatico(dtoChamado, "TI");
 
             var msg = id > 0
                 ? $"Não encontrei resposta na base. Abri automaticamente o chamado #{id}."
@@ -291,8 +458,8 @@ namespace BaseConhecimento.Controllers
             return Ok(new ChatKnowledgeResponseDTO { Reply = msg, TicketId = id > 0 ? id : null });
         }
 
-        // Cria chamado direto no banco (status e setor pré-definidos)
-        private async Task<int> CriarChamadoAutomatico(CriarChamadoDTO request)
+        // Cria chamado definindo Data & Solicitante
+        private async Task<int> CriarChamadoAutomatico(CriarChamadoDTO request, string setor)
         {
             try
             {
@@ -301,7 +468,9 @@ namespace BaseConhecimento.Controllers
                     Titulo = request.Titulo?.Trim() ?? "[BOT] Chamado",
                     Descricao = request.Descricao?.Trim() ?? "",
                     StatusEnum = StatusChamadoEnum.Pendente,
-                    SetorResponsavel = "TI" // pré-definido; ajuste se quiser usar InferSetor()
+                    SetorResponsavel = string.IsNullOrWhiteSpace(setor) ? "TI" : setor.Trim(),
+                    DataCriacao = DateTime.UtcNow,
+                    Solicitante = GetCurrentUserEmail() ?? "BOT"
                 };
                 _ctx.Chamados.Add(chamado);
                 await _ctx.SaveChangesAsync();
