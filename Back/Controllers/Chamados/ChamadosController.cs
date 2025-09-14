@@ -2,6 +2,7 @@
 using BaseConhecimento.DTOs.Chamados.Requests;
 using BaseConhecimento.Models.Chamados;
 using BaseConhecimento.Models.Chamados.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -9,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace BaseConhecimento.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Atendente")]
 [Route("api/[controller]")]
 public class ChamadosController : ControllerBase
 {

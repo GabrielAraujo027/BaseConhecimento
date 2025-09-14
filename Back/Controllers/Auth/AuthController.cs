@@ -6,6 +6,8 @@ using BaseConhecimento.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace BaseConhecimento.Controllers.Auth
 {
@@ -46,6 +48,12 @@ namespace BaseConhecimento.Controllers.Auth
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
+
+            if (!await _roleManager.RoleExistsAsync("Solicitante"))
+                await _roleManager.CreateAsync(new IdentityRole("Solicitante"));
+
+            await _userManager.AddToRoleAsync(user, "Solicitante");
+
             if (!result.Succeeded)
                 return BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
 
@@ -81,11 +89,48 @@ namespace BaseConhecimento.Controllers.Auth
         [Authorize]
         public async Task<IActionResult> Me()
         {
-            var user = await _userManager.FindByNameAsync(User.Identity!.Name!);
-            if (user is null) return NotFound();
+            // pega do token: NameIdentifier ou sub; fallback para email
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                         ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+
+            ApplicationUser? user = null;
+
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                user = await _userManager.FindByIdAsync(userId);
+            }
+            else
+            {
+                var email = User.FindFirstValue(ClaimTypes.Email)
+                          ?? User.FindFirstValue(JwtRegisteredClaimNames.Email);
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return Unauthorized(new { error = "Usuário não identificado no token." });
+
+                user = await _userManager.FindByEmailAsync(email);
+            }
+
+            if (user is null) return NotFound(new { error = "Usuário não encontrado." });
 
             var roles = await _userManager.GetRolesAsync(user);
             return Ok(new { user.Email, user.FullName, roles });
+        }
+
+        [HttpPost("assign-role")]
+        [Authorize(Roles = "Atendente")]
+        public async Task<IActionResult> AssignRole([FromQuery] string email, [FromQuery] string role)
+        {
+            if (!await _roleManager.RoleExistsAsync(role))
+                await _roleManager.CreateAsync(new IdentityRole(role));
+
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user is null) return NotFound(new { error = "Usuário não encontrado." });
+
+            var res = await _userManager.AddToRoleAsync(user, role);
+            if (!res.Succeeded)
+                return BadRequest(new { error = string.Join("; ", res.Errors.Select(e => e.Description)) });
+
+            return Ok(new { message = $"Papel '{role}' atribuído a {email}." });
         }
     }
 }

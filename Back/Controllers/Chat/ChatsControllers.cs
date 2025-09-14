@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BaseConhecimento.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
+//[ApiController]
+//[Route("api/[controller]")]
 public class ChatController : ControllerBase
 {
     private readonly IHttpClientFactory _httpFactory;
@@ -16,7 +16,7 @@ public class ChatController : ControllerBase
         _httpFactory = httpFactory;
     }
 
-    [HttpPost]
+    //[HttpPost]
     public async Task<ActionResult<ChatResponseDTO>> Chat([FromBody] ChatRequestDTO req, CancellationToken ct)
     {
         if (req is null || string.IsNullOrWhiteSpace(req.Message))
@@ -76,7 +76,7 @@ public class ChatController : ControllerBase
     }
 
     // OPCIONAL: streaming SSE (para "digitando...")
-    [HttpGet("stream")]
+    //[HttpGet("stream")]
     public async Task Stream([FromQuery] string message, CancellationToken ct)
     {
         Response.Headers.CacheControl = "no-cache";
@@ -124,7 +124,7 @@ public class ChatController : ControllerBase
         }
     }
 
-    [HttpPost("ollama")]
+    //[HttpPost("ollama")]
     public async Task<ActionResult<ChatResponseDTO>> ChatOllama([FromBody] ChatRequestDTO req, CancellationToken ct)
     {
         if (req is null || string.IsNullOrWhiteSpace(req.Message))

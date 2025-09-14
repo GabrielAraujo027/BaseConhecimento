@@ -123,7 +123,6 @@ public class KnowledgeController : ControllerBase
         return Ok(result);
     }
 
-    // -------- Chat (rápido, sem Llama) --------
     [HttpPost("chat")]
     public async Task<ActionResult<ChatKnowledgeResponseDTO>> Chat(
         [FromBody] ChatKnowledgeRequestDTO req,

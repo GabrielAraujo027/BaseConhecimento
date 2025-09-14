@@ -108,19 +108,59 @@ builder.Services.AddHttpClient("ollama", client =>
 // -------------------------
 // Serviços de aplicação
 // -------------------------
-builder.Services.AddScoped<ITokenService, TokenService>();      // gera JWT
-builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>(); // seu embedding atual
-builder.Services.AddHttpClient<ILlamaService, LlamaService>();  // se você ainda usa em algum endpoint
+builder.Services.AddScoped<ITokenService, TokenService>();                  // gera JWT
+builder.Services.AddScoped<IEmbeddingService, OllamaEmbeddingService>();    // serviço de embeddings
+builder.Services.AddHttpClient<ILlamaService, LlamaService>();              // serviço Llama (se utilizado)
 
 var app = builder.Build();
 
 // -------------------------
-// Auto-migrate (opcional)
+// Migrations + Seed (roles + usuário com senha)
 // -------------------------
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    var sp = scope.ServiceProvider;
+
+    // DB migrate
+    var db = sp.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+
+    // Cria roles padrão
+    var roleMgr = sp.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var role in new[] { "Solicitante", "Atendente" })
+        if (!await roleMgr.RoleExistsAsync(role))
+            await roleMgr.CreateAsync(new IdentityRole(role));
+
+    // Seed de usuário via appsettings (Email + Password + Role)
+    // "Auth": { "SeedUser": { "Email": "...", "Password": "...", "Role": "Atendente" } }
+    var cfg = app.Configuration;
+    var seedEmail = cfg["Auth:SeedUser:Email"];
+    var seedPass = cfg["Auth:SeedUser:Password"];
+    var seedRole = cfg["Auth:SeedUser:Role"] ?? "Atendente";
+
+    if (!string.IsNullOrWhiteSpace(seedEmail))
+    {
+        var userMgr = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = await userMgr.FindByEmailAsync(seedEmail);
+
+        if (user is null && !string.IsNullOrWhiteSpace(seedPass))
+        {
+            user = new ApplicationUser { UserName = seedEmail, Email = seedEmail };
+            var res = await userMgr.CreateAsync(user, seedPass);
+            if (res.Succeeded)
+            {
+                if (!await roleMgr.RoleExistsAsync(seedRole))
+                    await roleMgr.CreateAsync(new IdentityRole(seedRole));
+                await userMgr.AddToRoleAsync(user, seedRole);
+            }
+        }
+        else if (user is not null)
+        {
+            // Garante a role caso já exista
+            if (!await userMgr.IsInRoleAsync(user, seedRole))
+                await userMgr.AddToRoleAsync(user, seedRole);
+        }
+    }
 }
 
 // -------------------------
