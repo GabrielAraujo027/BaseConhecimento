@@ -50,7 +50,7 @@ document.getElementById("form-cadastro").addEventListener("submit", async functi
 
     if(res.ok){
       alert("Cadastro realizado com sucesso!");
-      window.location.href = "login.html"; // volta para login
+      window.location.href = "login.html";
     } else {
       const errorText = await res.text();
       alert("Erro ao cadastrar: " + errorText);
