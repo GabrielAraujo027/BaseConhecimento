@@ -1,14 +1,65 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Listagem de Chamados</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Listagem de Chamados</title>
+<link rel="stylesheet" href="style.css">
+<style>
+/* Scroll do corpo da tabela */
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+.table-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #3a1c71;
+  color: #fff;
+  padding: 12px 15px;
+}
+
+.table-container tbody td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.table-container tbody tr:hover {
+  background: #fdf3eb;
+}
+
+/* Status colors */
+.status.pendente { color: #ff7e29; font-weight: bold; }
+.status.em\ andamento { color: #3498db; font-weight: bold; }
+.status.concluído { color: #2ecc71; font-weight: bold; }
+.status.cancelado { color: #e74c3c; font-weight: bold; }
+
+/* Botões Detalhes */
+.chamado-detalhes .acoes button {
+  padding: 8px 14px;
+  margin-right: 8px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #fff;
+  transition: transform 0.2s, opacity 0.3s;
+}
+
+.btn-responder { background: #3a1c71; }
+.btn-fechar { background: #2ecc71; }
+.btn-cancelar { background: #e74c3c; }
+</style>
 </head>
 <body>
 <div class="dashboard">
-
   <aside class="sidebar">
     <div class="logo">Unitá</div>
     <nav class="menu">
@@ -22,22 +73,24 @@
       <input type="text" id="filter-setor" placeholder="Buscar setor">
     </section>
 
-    <section class="table-section">
-      <table class="chamados-table" id="chamados-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Setor</th>
-            <th>Assunto</th>
-            <th>Solicitante</th>
-            <th>Data</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="table-body">
-          <tr><td colspan="6">Carregando chamados...</td></tr>
-        </tbody>
-      </table>
+    <section class="table-section" style="display:flex; gap:20px; flex:1;">
+      <div class="table-container">
+        <table class="chamados-table" id="chamados-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Setor</th>
+              <th>Assunto</th>
+              <th>Solicitante</th>
+              <th>Data</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="6">Carregando chamados...</td></tr>
+          </tbody>
+        </table>
+      </div>
 
       <aside class="chamado-detalhes">
         <h2>Detalhes do Chamado</h2>
@@ -51,6 +104,7 @@
         <div class="acoes">
           <button class="btn-responder" id="btn-encaminhar">Encaminhar</button>
           <button class="btn-fechar" id="btn-fechar">Encerrar</button>
+          <button class="btn-cancelar" id="btn-cancelar">Cancelar</button>
         </div>
 
         <div id="encaminhar-container" style="display:none; margin-top:10px;">
@@ -70,19 +124,16 @@
 </div>
 
 <script>
-// URL da API
 const API_LISTA = "http://172.20.18.68:5206/api/Chamados";
 let chamadoSelecionado = null;
 
-// Mapeamento de statusEnum
 const STATUS_MAP = {
-  0: "Aberto",
+  0: "Pendente",
   1: "Em andamento",
-  2: "Pendente",
-  3: "Fechado"
+  2: "Concluído",
+  3: "Cancelado"
 };
 
-// ==== Carregar todos os chamados ====
 async function carregarChamados() {
   try {
     const token = localStorage.getItem("token");
@@ -105,7 +156,7 @@ async function carregarChamados() {
         <td>${chamado.titulo}</td>
         <td>${chamado.solicitante || "-"}</td>
         <td>${new Date(chamado.dataCriacao || chamado.data).toLocaleDateString()}</td>
-        <td class="status ${statusTexto.toLowerCase()}">${statusTexto}</td>
+        <td class="status ${statusTexto.toLowerCase().replace(' ','-')}">${statusTexto}</td>
       `;
       tr.addEventListener("click", () => mostrarDetalhes(chamado.id));
       tbody.appendChild(tr);
@@ -116,7 +167,6 @@ async function carregarChamados() {
   }
 }
 
-// ==== Mostrar detalhes do chamado ====
 async function mostrarDetalhes(id) {
   try {
     const token = localStorage.getItem("token");
@@ -145,7 +195,6 @@ async function mostrarDetalhes(id) {
   }
 }
 
-// ==== Função PUT genérica para atualizar chamado ====
 async function atualizarChamado(id, statusEnum, setorResponsavel) {
   try {
     const token = localStorage.getItem("token");
@@ -168,21 +217,7 @@ async function atualizarChamado(id, statusEnum, setorResponsavel) {
   }
 }
 
-// ==== Encerrar chamado ====
-document.getElementById("btn-fechar").addEventListener("click", async () => {
-  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
-
-  const sucesso = await atualizarChamado(chamadoSelecionado.id, 3, chamadoSelecionado.setorResponsavel); // status 3 = Fechado
-  if(sucesso){
-    alert("Chamado encerrado!");
-    carregarChamados();
-    mostrarDetalhes(chamadoSelecionado.id); // atualizar detalhes
-  } else {
-    alert("Erro ao encerrar chamado.");
-  }
-});
-
-// ==== Encaminhar chamado ====
+// Encaminhar → Pendente
 document.getElementById("btn-encaminhar").addEventListener("click", () => {
   if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
   document.getElementById("encaminhar-container").style.display = "block";
@@ -192,9 +227,9 @@ document.getElementById("confirmar-encaminhar").addEventListener("click", async 
   const novoSetor = document.getElementById("novo-setor").value;
   if(!novoSetor){ alert("Selecione um setor válido."); return; }
 
-  const sucesso = await atualizarChamado(chamadoSelecionado.id, chamadoSelecionado.statusEnum, novoSetor);
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, 0, novoSetor); // 0 = Pendente
   if(sucesso){
-    alert("Chamado encaminhado!");
+    alert("Chamado encaminhado e status definido como Pendente!");
     carregarChamados();
     mostrarDetalhes(chamadoSelecionado.id);
     document.getElementById("encaminhar-container").style.display = "none";
@@ -203,7 +238,35 @@ document.getElementById("confirmar-encaminhar").addEventListener("click", async 
   }
 });
 
-// ==== Filtros ====
+// Encerrar → Concluído
+document.getElementById("btn-fechar").addEventListener("click", async () => {
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, 2, chamadoSelecionado.setorResponsavel); // 2 = Concluído
+  if(sucesso){
+    alert("Chamado encerrado com status Concluído!");
+    carregarChamados();
+    mostrarDetalhes(chamadoSelecionado.id);
+  } else {
+    alert("Erro ao encerrar chamado.");
+  }
+});
+
+// Cancelar → Cancelado
+document.getElementById("btn-cancelar").addEventListener("click", async () => {
+  if(!chamadoSelecionado){ alert("Selecione um chamado primeiro!"); return; }
+
+  const sucesso = await atualizarChamado(chamadoSelecionado.id, 3, chamadoSelecionado.setorResponsavel); // 3 = Cancelado
+  if(sucesso){
+    alert("Chamado cancelado!");
+    carregarChamados();
+    mostrarDetalhes(chamadoSelecionado.id);
+  } else {
+    alert("Erro ao cancelar chamado.");
+  }
+});
+
+// Filtros
 const filterStatus = document.getElementById("filter-status");
 const filterSetor = document.getElementById("filter-setor");
 
@@ -220,7 +283,6 @@ function aplicarFiltro() {
 filterStatus.addEventListener("input", aplicarFiltro);
 filterSetor.addEventListener("input", aplicarFiltro);
 
-// ==== Inicializa ====
 carregarChamados();
 </script>
 </body>
